@@ -3,9 +3,7 @@ use image_filters::{
     pixel::{hsl::HslPixel, rgb::colours as RGB},
     prelude::*,
     utils::{
-        image::{
-            load_image, load_image_from_url_with_max_dim, load_image_with_max_dim, resize_image,
-        },
+        image::load_image_from_url_with_max_dim,
         ImageFilterResult,
     },
 };
@@ -13,7 +11,7 @@ use image_filters::{
 // this file is essentially for testing / running the code, more than providing an actual reusable binary
 
 fn main() -> ImageFilterResult<()> {
-    let gradient = hsl_gradient_map![
+    let _gradient = hsl_gradient_map![
         0.00 => sat: 0.0, lum: 0.0, hue: 0.0,
         0.30 => sat: 0.8, lum: 0.3, hue: 280.0,
         0.60 => sat: 0.8, lum: 0.6, hue: 200.0,
