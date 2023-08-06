@@ -1,8 +1,15 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, iter::Map};
+
+use image::DynamicImage;
+use image_filters::{utils::{image::{load_image_from_url_with_max_dim, load_image_from_url}, ImageFilterResult, Error}, AdjustableImage, prelude::{Filter, Dither}};
+use palette::rgb::Rgb;
+use serde::{Serialize, Deserialize};
 
 pub const API_URL: &'static str = "https://images-api.nasa.gov";
 
 pub const BASE_URL: &'static str = "https://images-api.nasa.gov";
+
+use rand::distributions::{Distribution, Uniform};
 
 #[inline] pub fn search() -> String {
     format!("{}/search", BASE_URL)
@@ -24,57 +31,125 @@ pub const BASE_URL: &'static str = "https://images-api.nasa.gov";
     format!("{}/album/{}", BASE_URL, album_name)
 }
 
+#[inline] pub fn apod(api_key: &str, date: &str) -> String {
+    format!("https://api.nasa.gov/planetary/apod?api_key={}&date={}", api_key, date)
+}
+
 pub enum MediaType {
     IMAGE, VIDEO, AUDIO
 }
 
+#[derive(Default)]
+pub struct SearchQueries {
+    pub q: Option<String>,
+    pub center: Option<String>,
+    pub description: Option<String>,
+    pub description_508: Option<String>,
+    pub keywords: Option<Vec<String>>,
+    pub location: Option<String>,
+    pub media_type: Option<MediaType>,
+    pub nasa_id: Option<String>,
+    pub page: Option<usize>,
+    pub page_size: Option<usize>,
+    pub photographer: Option<String>,
+    pub secondary_creator: Option<String>,
+    pub title: Option<String>,
+    pub year_start: Option<String>,
+    pub year_end: Option<String>,
+}
+
 pub enum Endpoints {
-    Search {
-        q: Option<String>,
-        center: Option<String>,
-        description: Option<String>,
-        description_508: Option<String>,
-        keywords: Option<Vec<String>>,
-        location: Option<String>,
-        media_type: Option<MediaType>,
-        nasa_id: Option<String>,
-        page: Option<usize>,
-        page_size: Option<usize>,
-        photographer: Option<String>,
-        secondary_creator: Option<String>,
-        title: Option<String>,
-        year_start: Option<String>,
-        year_end: Option<String>,
+    Search(SearchQueries)
+}
+
+#[derive(Debug)]
+pub enum NasaError {
+    Reqwest(reqwest::Error),
+    Image(Error),
+    NoUrl,
+}
+
+impl From<reqwest::Error> for NasaError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Reqwest(value)
     }
 }
 
-pub struct Link {
-    href: String,
-    prompt: String,
-    rel: String
+impl From<Error> for NasaError {
+    fn from(value: Error) -> Self {
+        Self::Image(value)
+    }
 }
 
-pub struct Data<T> {
-    data: T,
+type NasaResult<T> = Result<T, NasaError>;
+
+pub fn generate_random_apod_date() -> String {
+    let mut rng = rand::thread_rng();
+    // the first image was set on 1995-06-16
+
+    let earliest = (1995, 06, 16);
+    let latest = (2023, 08, 06);
+
+    let year = Uniform::from(earliest.0..latest.0);
+    let month = Uniform::from(1..=12);
+    let day = Uniform::from(1..=31);
+
+    let (year, mut month, mut day) = (
+        year.sample(&mut rng),
+        month.sample(&mut rng),
+        day.sample(&mut rng),
+    );
+
+    if year == earliest.0 {
+        month = month.max(earliest.1);
+        day = day.max(earliest.2);
+    } else if year == latest.0 {
+        month = month.min(latest.1);
+        day = day.min(latest.2);
+    }
+
+    day = if month == 2 {
+        if year % 4 == 0 {
+            day.min(29)
+        } else {
+            day.min(28)
+        }
+    } else if (month <= 7 && month % 2 == 1) || (month > 7 && month % 2 == 0) {
+        day.min(31)
+    } else {
+        day.min(30)
+    };
+
+    format!("{year}-{month:0>2}-{day:0>2}")
 }
 
-pub struct SearchResult {
-    center: String,
-    date_created: String,
-    description: String,
-    keywords: Vec<String>,
-    media_type: String,
-    nasa_id: String,
-    title: String,
+pub fn get_apod_for_date(date: &str) -> NasaResult<DynamicImage> {
+    println!("retrieving apod at {date} from nasa...");
+    let mut queries = SearchQueries::default();
+    queries.page = Some(1);
+    queries.page_size = Some(100);
+
+    // let body = reqwest::blocking::get(format!("{}?page=1&page_size=100&q=space", search()))?.json::<serde_json::Value>()?;
+
+    let body = reqwest::blocking::get(apod("TLXdY0dQ384cduqtqv23tl5kznfpC3bAh5faoclF", date))?.json::<serde_json::Value>()?;
+
+    let url = &body["url"];
+
+    if let serde_json::Value::String(url) = url {
+        Ok(load_image_from_url_with_max_dim(url, 1080)?)
+    } else {
+        Err(NasaError::NoUrl)
+    }
 }
 
-pub struct Collection<T, U = Data<T>> {
-    href: String,
-    items: Vec<U>,
-    links: Vec<Link>,
-    // metadata: 
-    version: String,
-    _phantom: PhantomData<T>
-}
+pub fn dither_apod(palette: &(&str, Vec<Rgb>)) -> NasaResult<DynamicImage> {
+    let apod_date = generate_random_apod_date();
+    let image = get_apod_for_date(&apod_date)?;
 
-type SearchResponse = Collection<SearchResult>;
+    let _ = image.clone()
+     .apply(Filter::Contrast(1.2))
+     .apply(Dither::Bayer(8, &palette.1))
+     .save(format!("data/nasa-output-{}-({apod_date}).png", palette.0));
+
+    Ok(image)
+}
