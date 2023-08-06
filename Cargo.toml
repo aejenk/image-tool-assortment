@@ -1,5 +1,6 @@
 [workspace]
 
 members = [
-    "nasa-apod-generator"
+    "nasa-apod-generator",
+    "basic",
 ]

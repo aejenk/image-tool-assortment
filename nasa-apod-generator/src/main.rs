@@ -3,10 +3,9 @@ use rand::prelude::SliceRandom;
 use dotenv::dotenv;
 
 pub mod nasa;
-pub mod base;
-pub mod gradients;
+pub mod palettes;
 
-use crate::{nasa::dither_apod, gradients::palettes};
+use crate::{nasa::dither_apod, palettes::palettes};
 
 const ITERATIONS: usize = 3;
 
