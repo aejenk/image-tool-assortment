@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 image-filters = { git = "https://github.com/enbyss/image-filters" }
+palette = "0.7.2"
