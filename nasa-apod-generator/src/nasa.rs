@@ -123,7 +123,7 @@ pub fn generate_random_apod_date() -> String {
     format!("{year}-{month:0>2}-{day:0>2}")
 }
 
-pub fn get_apod_for_date(date: &str) -> NasaResult<DynamicImage> {
+pub fn get_apod_for_date(api_key: &str, date: &str) -> NasaResult<DynamicImage> {
     println!("retrieving apod at {date} from nasa...");
     let mut queries = SearchQueries::default();
     queries.page = Some(1);
@@ -131,7 +131,7 @@ pub fn get_apod_for_date(date: &str) -> NasaResult<DynamicImage> {
 
     // let body = reqwest::blocking::get(format!("{}?page=1&page_size=100&q=space", search()))?.json::<serde_json::Value>()?;
 
-    let body = reqwest::blocking::get(apod("TLXdY0dQ384cduqtqv23tl5kznfpC3bAh5faoclF", date))?.json::<serde_json::Value>()?;
+    let body = reqwest::blocking::get(apod(api_key, date))?.json::<serde_json::Value>()?;
 
     let url = &body["url"];
 
@@ -142,14 +142,14 @@ pub fn get_apod_for_date(date: &str) -> NasaResult<DynamicImage> {
     }
 }
 
-pub fn dither_apod(palette: &(&str, Vec<Rgb>)) -> NasaResult<DynamicImage> {
+pub fn dither_apod(api_key: &str, palette: &(&str, Vec<Rgb>)) -> NasaResult<DynamicImage> {
     let apod_date = generate_random_apod_date();
-    let image = get_apod_for_date(&apod_date)?;
+    let image = get_apod_for_date(api_key, &apod_date)?;
 
     let _ = image.clone()
      .apply(Filter::Contrast(1.2))
      .apply(Dither::Bayer(8, &palette.1))
-     .save(format!("data/nasa-output-{}-({apod_date}).png", palette.0));
+     .save(format!("./nasa-apod-generator/data/nasa-output-{}-({apod_date}).png", palette.0));
 
     Ok(image)
 }
