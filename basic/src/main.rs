@@ -13,8 +13,8 @@ mod palettes;
 fn main() -> ImageFilterResult<()> {
     let palettes = palettes::palettes();
 
-    // const IMAGE_LINK: &'static str = "./basic/data/image.png";
-    const IMAGE_LINK: &'static str = "https://www.thoughtco.com/thmb/QIHGvOYobApZ_sY6xRjIkBdhcqg=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/521928855-56a9e2925f9b58b7d0ffac0a.jpg";
+    // const IMAGE_LINK: &'static str = "./basic/data/input.png";
+    const IMAGE_LINK: &'static str = "https://i.guim.co.uk/img/media/8c0d89c19debb620016911adafd054daf1fd6578/60_0_1800_1080/master/1800.png?width=1200&height=900&quality=85&auto=format&fit=crop&s=20ba76ec196311e99abc9ea98482f82a";
     const IS_URL: bool = true;
     const MAX_DIM: u32 = 1080;
 
@@ -26,25 +26,27 @@ fn main() -> ImageFilterResult<()> {
 
     image.save("./basic/data/__SOURCE.png")?;
 
-    // let gradient_map: Vec<(Srgb, f32)> = [
-    //     (Lch::new(0.0, 100.0, 0.0), 0.00),
-    //     (Lch::new(60.0, 100.0, 0.0), 0.20),
-    //     (Lch::new(60.0, 100.0, 90.0), 0.40),
-    //     (Lch::new(60.0, 100.0, 180.0), 0.60),
-    //     (Lch::new(80.0, 100.0, 270.0), 0.80),
-    //     (Lch::new(100.0, 100.0, 360.0), 1.00),
+    // let gradient_map = gradient_map![
+    //     0.00 => Lch::new(0.0, 100.0, 0.0),
+    //     0.20 => Lch::new(60.0, 100.0, 0.0),
+    //     0.40 => Lch::new(60.0, 100.0, 90.0),
+    //     0.60 => Lch::new(60.0, 100.0, 180.0),
+    //     0.80 => Lch::new(80.0, 100.0, 270.0),
+    //     1.00 => Lch::new(100.0, 100.0, 360.0)
     // ]
     //     .iter()
     //     .map(|(colour, th)| (Srgb::from_color(*colour), *th))
     //     .collect::<Vec<_>>();
 
-    for (name, palette) in palettes.into_iter() {
+    for (name, palette) in palettes.iter() {
         image
             .clone()
-            .apply(Filter::Contrast( 1.2))
-            .apply(Dither::Bayer(8, &palette))
+            .apply(Dither::Bayer(2, palette))
             .save(format!("./basic/data/output-{}.png", name))?;
     }
+
+    // let gradient = generate_hue_gradient(230.0);
+    // print_gradient_grid(gradient);
 
     Ok(())
 }
