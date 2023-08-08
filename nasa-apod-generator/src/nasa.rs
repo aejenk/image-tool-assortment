@@ -1,5 +1,5 @@
 use image::DynamicImage;
-use image_filters::{utils::{image::load_image_from_url_with_max_dim, Error}, AdjustableImage, prelude::{Filter, Dither}};
+use image_effects::{utils::{image::load_image_from_url_with_max_dim, Error}, AdjustableImage, prelude::{Filter, Dither}};
 use palette::rgb::Rgb;
 use rand::rngs::ThreadRng;
 

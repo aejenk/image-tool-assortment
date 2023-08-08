@@ -1,4 +1,4 @@
-use image_filters::utils::ImageFilterResult;
+use image_effects::utils::ImageFilterResult;
 use rand::prelude::SliceRandom;
 use dotenv::dotenv;
 

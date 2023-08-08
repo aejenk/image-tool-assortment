@@ -58,7 +58,7 @@ name = "basic"
 version = "0.1.0"
 dependencies = [
  "image",
- "image-filters",
+ "image-effects",
  "palette",
  "rand",
 ]
@@ -550,9 +550,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-filters"
+name = "image-effects"
 version = "0.1.0"
-source = "git+https://github.com/enbyss/image-filters#bb9c3f2fd28d9145baf25f916488e21a6561a60c"
+source = "git+https://github.com/enbyss/image-filters#cf47910e916843fb9ec83a2b70c01b3ecb7b301b"
 dependencies = [
  "base64",
  "image",
@@ -710,7 +710,7 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "image",
- "image-filters",
+ "image-effects",
  "palette",
  "rand",
  "reqwest",

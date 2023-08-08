@@ -1,4 +1,4 @@
-use image_filters::{
+use image_effects::{
     prelude::*,
     utils::{
         image::{load_image_from_url_with_max_dim, load_image_with_max_dim},
@@ -13,9 +13,9 @@ mod palettes;
 fn main() -> ImageFilterResult<()> {
     let palettes = palettes::palettes();
 
-    // const IMAGE_LINK: &'static str = "./basic/data/input.png";
-    const IMAGE_LINK: &'static str = "https://i.guim.co.uk/img/media/8c0d89c19debb620016911adafd054daf1fd6578/60_0_1800_1080/master/1800.png?width=1200&height=900&quality=85&auto=format&fit=crop&s=20ba76ec196311e99abc9ea98482f82a";
-    const IS_URL: bool = true;
+    const IMAGE_LINK: &'static str = "./basic/data/input.png";
+    // const IMAGE_LINK: &'static str = "https://i.guim.co.uk/img/media/8c0d89c19debb620016911adafd054daf1fd6578/60_0_1800_1080/master/1800.png?width=1200&height=900&quality=85&auto=format&fit=crop&s=20ba76ec196311e99abc9ea98482f82a";
+    const IS_URL: bool = false;
     const MAX_DIM: u32 = 1080;
 
     let image = if IS_URL {

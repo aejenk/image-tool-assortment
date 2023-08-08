@@ -1,4 +1,4 @@
-use image_filters::{prelude::{SrgbColour as RGB, IntoGradient}, colour::utils::GradientMethod};
+use image_effects::{prelude::{SrgbColour as RGB, IntoGradient}, colour::utils::GradientMethod};
 use palette::rgb::Rgb;
 
 pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> { 
