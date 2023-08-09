@@ -13,7 +13,7 @@ fn main() {
 
     // let palette = vec![RGB::BLACK, RGB::WHITE, RGB::CYAN, RGB::MAGENTA, RGB::YELLOW];
 
-    let file = File::open("./gif-effect/data/sunrise-fortpierce.gif").unwrap();
+    let file = File::open("./gif-effect/data/guh.gif").unwrap();
     let decoder = GifDecoder::new(file).unwrap();
     let frames = decoder.into_frames();
     let frames = frames.collect_frames().expect("Error decoding gif");
@@ -22,13 +22,16 @@ fn main() {
         println!("working for palette: {name}");
         let frames = frames.clone().into_iter()
             .map(|frame| GifFrame(frame)
-                // .apply(&Filter::Contrast(2.0))
+                // .apply(&Filter::Contrast(1.5))
+                // .apply(&Filter::Saturate(0.3))
+                // .apply(&Filter::RotateHue(180.0))
                 .apply(&Dither::Bayer(2, &palette))
                 .0)
             .collect::<Vec<_>>();
 
         let file_out = File::create(format!("./gif-effect/data/output-{name}.gif")).unwrap();
         let mut encoder = GifEncoder::new(file_out);
+        encoder.set_repeat(image::codecs::gif::Repeat::Infinite).unwrap();
         encoder.encode_frames(frames.into_iter()).unwrap();
     }
 }   

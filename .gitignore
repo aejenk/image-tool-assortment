@@ -2,3 +2,5 @@
 .env
 
 /nasa-apod-generator/data/**.png
+/basic/data/**.png
+/gif-effect/data/**.gif
