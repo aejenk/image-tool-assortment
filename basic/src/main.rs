@@ -14,7 +14,7 @@ fn main() -> ImageFilterResult<()> {
     let palettes = palettes::palettes();
 
     const IMAGE_LINK: &'static str = "./basic/data/input.png";
-    // const IMAGE_LINK: &'static str = "https://i.guim.co.uk/img/media/8c0d89c19debb620016911adafd054daf1fd6578/60_0_1800_1080/master/1800.png?width=1200&height=900&quality=85&auto=format&fit=crop&s=20ba76ec196311e99abc9ea98482f82a";
+    // const IMAGE_LINK: &'static str = "https://staging.cohostcdn.org/attachment/af29482e-25a9-4777-9c94-b80d1baef23c/image.png";
     const IS_URL: bool = false;
     const MAX_DIM: u32 = 1080;
 
@@ -41,7 +41,7 @@ fn main() -> ImageFilterResult<()> {
     for (name, palette) in palettes.iter() {
         image
             .clone()
-            .apply(Dither::Bayer(2, palette))
+            .apply(&Dither::Bayer(2, palette))
             .save(format!("./basic/data/output-{}.png", name))?;
     }
 

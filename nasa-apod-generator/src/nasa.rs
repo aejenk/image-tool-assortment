@@ -1,5 +1,5 @@
 use image::DynamicImage;
-use image_effects::{utils::{image::load_image_from_url_with_max_dim, Error}, AdjustableImage, prelude::{Filter, Dither}};
+use image_effects::{utils::{image::load_image_from_url_with_max_dim, Error}, prelude::{Filter, Dither}, Affectable};
 use palette::rgb::Rgb;
 use rand::rngs::ThreadRng;
 
@@ -72,8 +72,8 @@ pub fn dither_random_apod_image(rng: &mut ThreadRng, api_key: &str, palette: &(&
     let image = get_apod_for_date(api_key, &apod_date, use_hd)?;
 
     let _ = image.clone()
-     .apply(Filter::Contrast(1.2))
-     .apply(Dither::Bayer(8, &palette.1))
+     .apply(&Filter::Contrast(1.2))
+     .apply(&Dither::Bayer(8, &palette.1))
      .save(format!("./nasa-apod-generator/data/nasa-output-{}-({apod_date}){}.png", palette.0, if use_hd { "-hd" } else { "" }));
 
     Ok(image)

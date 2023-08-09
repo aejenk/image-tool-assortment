@@ -3,4 +3,5 @@
 members = [
     "nasa-apod-generator",
     "basic",
+    "gif-effect",
 ]
