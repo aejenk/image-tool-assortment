@@ -1,37 +1,34 @@
 use std::fs::File;
-
 use frame::GifFrame;
-use gif::Encoder;
-use image_effects::prelude::{Filter, Affectable};
+use image::{codecs::gif::{GifDecoder, GifEncoder}, AnimationDecoder};
+use image_effects::prelude::{Filter, Affectable, Dither};
+use image_effects::{prelude::{SrgbColour as RGB}};
+use palettes::palettes;
 
 mod frame;
+mod palettes;
 
 fn main() {
-    let mut decoder = gif::DecodeOptions::new();
+    let palettes = palettes();
 
-    decoder.set_color_output(gif::ColorOutput::RGBA);
+    // let palette = vec![RGB::BLACK, RGB::WHITE, RGB::CYAN, RGB::MAGENTA, RGB::YELLOW];
 
-    let file = File::open("./gif-effect/data/rabbit-magnet.gif").unwrap();
+    let file = File::open("./gif-effect/data/sunrise-fortpierce.gif").unwrap();
+    let decoder = GifDecoder::new(file).unwrap();
+    let frames = decoder.into_frames();
+    let frames = frames.collect_frames().expect("Error decoding gif");
 
-    let mut decoder = decoder.read_info(file).unwrap();
+    for (name, palette) in palettes.iter() {
+        println!("working for palette: {name}");
+        let frames = frames.clone().into_iter()
+            .map(|frame| GifFrame(frame)
+                // .apply(&Filter::Contrast(2.0))
+                .apply(&Dither::Bayer(2, &palette))
+                .0)
+            .collect::<Vec<_>>();
 
-    let gif_width = decoder.width();
-    let gif_height = decoder.height();
-
-    let mut output = File::create("./gif-effect/data/rabbit-contrast.gif").unwrap();
-    let mut encoder = Encoder::new(&mut output, gif_width, gif_height, &[]).unwrap();
-    encoder.set_repeat(gif::Repeat::Infinite).unwrap();
-
-    let mut _frame_count = 0;
-    while let Some(frame) = decoder.read_next_frame().unwrap() {
-        if frame.width != gif_width || frame.height != gif_height {
-            continue;
-        }
-
-        let frame = GifFrame(frame.clone())
-            .apply(&Filter::Contrast(1.5))
-            .apply(&Filter::Saturate(1.0));
-
-        encoder.write_frame(&frame.0).unwrap();
+        let file_out = File::create(format!("./gif-effect/data/output-{name}.gif")).unwrap();
+        let mut encoder = GifEncoder::new(file_out);
+        encoder.encode_frames(frames.into_iter()).unwrap();
     }
 }   
