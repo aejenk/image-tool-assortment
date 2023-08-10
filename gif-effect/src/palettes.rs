@@ -1,4 +1,4 @@
-use image_effects::{prelude::{SrgbColour as RGB, IntoGradient}, colour::utils::GradientMethod};
+use image_effects::{prelude::{SrgbColour as RGB, IntoGradient, palettes::EIGHT_BIT}, colour::utils::GradientMethod};
 use palette::{rgb::Rgb, Lch};
 
 pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> { 
@@ -23,6 +23,13 @@ pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> {
                 RGB::YELLOW.build_gradient(10, GRADIENT_METHOD),
                 RGB::GOLD.build_gradient(10, GRADIENT_METHOD),
                 vec![RGB::BLACK, RGB::WHITE],
+            ]
+            .concat(),
+        ),
+        (
+            "crisp-nightlife",
+            [
+                vec![RGB::CYAN, RGB::PINK, RGB::YELLOW, RGB::GOLD, RGB::BLUE, RGB::PURPLE, RGB::WHITE, RGB::BLACK],
             ]
             .concat(),
         ),
@@ -130,6 +137,61 @@ pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> {
                 vec![RGB::BLACK, RGB::BLUE],
             ].concat()
         ),
+        (
+            "red",
+            [
+                vec![RGB::BLACK, RGB::RED],
+            ].concat()
+        ),
+        (
+            "mono",
+            [
+                vec![RGB::BLACK, RGB::WHITE],
+            ].concat()
+        ),
+        (
+            "orangurple",
+            [
+                vec![RGB::BLACK, RGB::WHITE, RGB::PURPLE, RGB::ORANGE],
+            ].concat()
+        ),
+        (
+            "calmfire",
+            [
+                vec![RGB::WHITE, RGB::ROSE, RGB::ORANGE, RGB::BLACK],
+            ].concat()
+        ),
+        (
+            "rcgmby",
+            [
+                vec![RGB::RED, RGB::CYAN, RGB::GREEN, RGB::MAGENTA, RGB::BLUE, RGB::YELLOW],
+            ].concat()
+        ),
+        (
+            "eight-bit",
+            [
+                vec![RGB::RED, RGB::BLUE, RGB::GREEN, RGB::WHITE, RGB::BLACK],
+            ].concat(),
+        ),
+        (
+            "deep-crushed-ocean",
+            [
+                vec![RGB::BLACK, RGB::PURPLE, RGB::BLUE, RGB::CYAN, RGB::WHITE],
+            ].concat(),
+        ),
+        (
+            "falling-bitsun",
+            [
+                vec![RGB::BLACK, RGB::PURPLE, RGB::RED, RGB::ORANGE, RGB::GOLD, RGB::WHITE],
+            ].concat(),
+        ),
+        (
+            "pixeleaf",
+            [
+                RGB::GREEN.build_gradient(4, GRADIENT_METHOD),
+                vec![RGB::BLACK, RGB::WHITE],
+            ].concat(),
+        )
     ];
     palettes.push((
         "all",

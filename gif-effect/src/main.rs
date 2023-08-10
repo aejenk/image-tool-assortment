@@ -13,7 +13,7 @@ fn main() {
 
     // let palette = vec![RGB::BLACK, RGB::WHITE, RGB::CYAN, RGB::MAGENTA, RGB::YELLOW];
 
-    let file = File::open("./gif-effect/data/guh.gif").unwrap();
+    let file = File::open("./gif-effect/data/inputs/bgm11.gif").unwrap();
     let decoder = GifDecoder::new(file).unwrap();
     let frames = decoder.into_frames();
     let frames = frames.collect_frames().expect("Error decoding gif");
@@ -22,10 +22,11 @@ fn main() {
         println!("working for palette: {name}");
         let frames = frames.clone().into_iter()
             .map(|frame| GifFrame(frame)
-                // .apply(&Filter::Contrast(1.5))
-                // .apply(&Filter::Saturate(0.3))
+                // .apply(&Filter::Brighten( 0.2))
+                .apply(&Filter::Saturate( 0.1))
+                .apply(&Filter::Contrast( 1.1))
                 // .apply(&Filter::RotateHue(180.0))
-                .apply(&Dither::Bayer(2, &palette))
+                .apply(&Dither::Bayer(8, &palette))
                 .0)
             .collect::<Vec<_>>();
 
