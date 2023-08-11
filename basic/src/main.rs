@@ -13,9 +13,9 @@ mod palettes;
 fn main() -> ImageFilterResult<()> {
     let palettes = palettes::palettes();
 
-    const IMAGE_LINK: &'static str = "./basic/data/input.png";
-    // const IMAGE_LINK: &'static str = "https://staging.cohostcdn.org/attachment/af29482e-25a9-4777-9c94-b80d1baef23c/image.png";
-    const IS_URL: bool = false;
+    // const IMAGE_LINK: &'static str = "./basic/data/input.png";
+    const IMAGE_LINK: &'static str = "https://media.discordapp.net/attachments/818328288836583474/1139275548900737064/cd86962ee4c84277afb4a7ba98e8006dbbf0635d.png?width=676&height=676";
+    const IS_URL: bool = true;
     const MAX_DIM: u32 = 1080;
 
     let image = if IS_URL {
@@ -41,7 +41,7 @@ fn main() -> ImageFilterResult<()> {
     for (name, palette) in palettes.iter() {
         image
             .clone()
-            .apply(&Dither::Bayer(2, palette))
+            .apply(&Dither::Bayer(8, palette))
             .save(format!("./basic/data/output-{}.png", name))?;
     }
 
