@@ -11,7 +11,7 @@ fn main() {
 
     // let palette = vec![RGB::BLACK, RGB::WHITE, RGB::CYAN, RGB::MAGENTA, RGB::YELLOW];
 
-    let file = File::open("./gif-effect/data/inputs/done/.gif").unwrap();
+    let file = File::open("./gif-effect/data/inputs/link.gif").unwrap();
     let decoder = GifDecoder::new(file).unwrap();
     let frames = decoder.into_frames();
     let frames = frames.collect_frames().expect("Error decoding gif");
@@ -33,3 +33,4 @@ fn main() {
         encoder.encode_frames(frames.into_iter()).unwrap();
     }
 }   
+

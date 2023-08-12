@@ -1,5 +1,7 @@
+use std::error::Error;
+
 use image::DynamicImage;
-use image_effects::{utils::{image::load_image_from_url_with_max_dim, Error}, prelude::{Filter, Dither}, Affectable};
+use image_effects::{prelude::{Filter, Dither}, Affectable, utils::image::ImageRequest};
 use palette::rgb::Rgb;
 use rand::rngs::ThreadRng;
 
@@ -13,26 +15,7 @@ use crate::utils::generate_random_date_between;
     format!("https://api.nasa.gov/planetary/apod?api_key={}&date={}&hd=true", api_key, date)
 }
 
-#[derive(Debug)]
-pub enum NasaError {
-    Reqwest(reqwest::Error),
-    Image(Error),
-    NoUrl,
-}
-
-impl From<reqwest::Error> for NasaError {
-    fn from(value: reqwest::Error) -> Self {
-        Self::Reqwest(value)
-    }
-}
-
-impl From<Error> for NasaError {
-    fn from(value: Error) -> Self {
-        Self::Image(value)
-    }
-}
-
-type NasaResult<T> = Result<T, NasaError>;
+type UtilResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn generate_random_apod_date(rng: &mut ThreadRng) -> String {
     // the first APOD image was in 1995/06/16.
@@ -47,7 +30,7 @@ pub fn generate_random_apod_date(rng: &mut ThreadRng) -> String {
     format!("{year}-{month:0>2}-{day:0>2}")
 }
 
-pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> NasaResult<DynamicImage> {
+pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> UtilResult<DynamicImage> {
     println!("retrieving apod at {date} from nasa...");
 
     let body = reqwest::blocking::get(apod(api_key, date))?.json::<serde_json::Value>()?;
@@ -60,21 +43,22 @@ pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> NasaResult<
 
     let maxdim = if use_hd { 2160 } else { 1080 };
 
-    if let serde_json::Value::String(url) = url {
-        Ok(load_image_from_url_with_max_dim(url, maxdim)?)
-    } else {
-        Err(NasaError::NoUrl)
-    }
+    let url = url.as_str().unwrap();
+
+    Ok(ImageRequest::Url {
+        url: url,
+        max_dim: Some(maxdim),
+    }.perform()?)
 }
 
-pub fn dither_random_apod_image(rng: &mut ThreadRng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> NasaResult<DynamicImage> {
+pub fn dither_random_apod_image(rng: &mut ThreadRng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> UtilResult<(DynamicImage, String)> {
     let apod_date = generate_random_apod_date(rng);
     let image = get_apod_for_date(api_key, &apod_date, use_hd)?;
 
-    let _ = image.clone()
+    let image = image.clone()
      .apply(&Filter::Contrast(1.2))
-     .apply(&Dither::Bayer(8, &palette.1))
-     .save(format!("./nasa-apod-generator/data/nasa-output-{}-({apod_date}){}.png", palette.0, if use_hd { "-hd" } else { "" }));
+     .apply(&Dither::Bayer(8, &palette.1));
+    //  .save(format!("./nasa-apod-generator/data/nasa-output-{}-({apod_date}){}.png", palette.0, if use_hd { "-hd" } else { "" }));
 
-    Ok(image)
+    Ok((image, apod_date))
 }
