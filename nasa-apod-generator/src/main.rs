@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use image::GenericImageView;
+use image::{GenericImageView, DynamicImage};
 use rand::prelude::SliceRandom;
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
@@ -32,37 +32,51 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let (image, date) = dither_random_apod_image(&mut rng, &api_key, palette, USE_HD).unwrap();
 
-        let (width, height) = image.dimensions();
-        let metadata = eggbug::MediaMetadata::Image { 
-            width: Some(width),
-            height: Some(height), 
-        };
-
-        let bytes = image.into_bytes();
-        let attachment = Attachment::new(bytes, format!("{date}-{}", palette.0), "".into(), metadata);
-
-        let mut post = Post {
-            adult_content: false,
-            headline: format!("{date}"),
-            ask: None,
-            attachments: vec![
-                attachment
-            ],
-            markdown: format!("**Palette:** *{}*", palette.0),
-            tags: vec![
-                "apod".into(),
-                "astronomy photo of the day".into(),
-                "nasa".into(),
-                date,
-                format!("palette({})", palette.0),
-            ],
-            content_warnings: vec![],
-            draft: false,
-            metadata: None,
-        };
-
-        let _ = session.create_post("ditherpod", &mut post).await?;
+        save_image_locally(image, palette.0, &date)?;
+        // dispatch_apod_image_to_cohost(image, &session, palette.0, date).await?;
     }
+
+    Ok(())
+}
+
+fn save_image_locally(image: DynamicImage, palette_name: &str, date: &str) -> Result<(), Box<dyn Error>> {
+    Ok(image.save_with_format(
+        format!("./nasa-apod-generator/data/nasa-output-{palette_name}-{date}.png"),
+        image::ImageFormat::Png
+    )?)
+}
+
+async fn dispatch_apod_image_to_cohost(image: DynamicImage, session: &Session, palette_name: &str, date: String) -> Result<(), Box<dyn Error>> {
+    let (width, height) = image.dimensions();
+    let metadata = eggbug::MediaMetadata::Image { 
+        width: Some(width),
+        height: Some(height), 
+    };
+
+    let bytes = image.into_bytes();
+    let attachment = Attachment::new(bytes, format!("{date}-{}", palette_name), "".into(), metadata);
+
+    let mut post = Post {
+        adult_content: false,
+        headline: format!("{date}"),
+        ask: None,
+        attachments: vec![
+            attachment
+        ],
+        markdown: format!("**Palette:** *{}*", palette_name),
+        tags: vec![
+            "apod".into(),
+            "astronomy photo of the day".into(),
+            "nasa".into(),
+            date,
+            format!("palette({})", palette_name),
+        ],
+        content_warnings: vec![],
+        draft: false,
+        metadata: None,
+    };
+
+    let _ = session.create_post("ditherpod", &mut post).await?;
 
     Ok(())
 }

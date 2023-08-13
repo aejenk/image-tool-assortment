@@ -580,6 +580,7 @@ dependencies = [
  "image",
  "image-effects",
  "palette",
+ "reqwest",
 ]
 
 [[package]]

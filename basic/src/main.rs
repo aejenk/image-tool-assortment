@@ -15,8 +15,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let palettes = palettes::palettes();
 
     let image = ImageRequest::Url {
-        url: "https://i.pinimg.com/originals/60/a8/2c/60a82c6cf7fda046b291e6b2c78ea531.png",
-        max_dim: Some(1080),
+        url: "https://media.discordapp.net/attachments/1101139301057704099/1132652443621150802/image.png",
+        max_dim: Some(480),
     }.perform()?;
 
     image.save("./basic/data/__SOURCE.png")?;
@@ -33,11 +33,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Palette: {}", name);
         image
             .clone()
-            .apply(&Filter::Brighten( 0.2))
-            .apply(&Filter::Contrast(-1.1))
-            .apply(&Filter::GradientMap(&gradient))
-            .apply(&Filter::MultiplyHue(50.0))
-            .apply(&Filter::RotateHue(180.0))
+            .apply(&Filter::Brighten(-0.2))
+            // .apply(&Filter::Contrast( 2.5))
+            // .apply(&Filter::GradientMap(&gradient))
+            // .apply(&Filter::MultiplyHue(5.0))
+            // .apply(&Filter::RotateHue(180.0))
             .apply(&Dither::Bayer(8, palette))
             // .apply(&Dither::Atkinson(palette))
             // .apply(&Filter::Contrast(-0.8))
