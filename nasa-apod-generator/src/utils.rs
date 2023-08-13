@@ -1,7 +1,3 @@
-use std::{io::Cursor, error::Error};
-
-use base64::Engine;
-use image::DynamicImage;
 use rand::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng};
 
 type Date = (u32, u8, u8);
@@ -41,10 +37,4 @@ pub fn generate_random_date_between(mut rng: &mut ThreadRng, start: Date, end: D
     };
 
     (year, month, day)
-}
-
-pub fn image_to_b64(image: &DynamicImage) -> Result<String, Box<dyn Error>> {
-    let mut buf = Vec::new();
-    image.write_to(&mut Cursor::new(&mut buf), image::ImageOutputFormat::Png).unwrap();
-    Ok(base64::engine::general_purpose::STANDARD_NO_PAD.encode(buf))
 }

@@ -22,6 +22,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let password = std::env::var("COHOST_PASSWORD").expect("COHOST_PASSWORD must be set in the environment/.env.");
 
     const USE_HD: bool = true;
+    
+    enum ImageUser {
+        Save,
+        Cohost,
+    }
+
+    {
+        let _dead_warning_mute = (ImageUser::Cohost, ImageUser::Save);
+    }
+
+    const DO_WITH_IMAGE: ImageUser = ImageUser::Save;
 
     let session = Session::login(&email, &password).await?;
 
@@ -32,8 +43,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let (image, date) = dither_random_apod_image(&mut rng, &api_key, palette, USE_HD).unwrap();
 
-        save_image_locally(image, palette.0, &date)?;
-        // dispatch_apod_image_to_cohost(image, &session, palette.0, date).await?;
+        match DO_WITH_IMAGE {
+            ImageUser::Save => save_image_locally(image, palette.0, &date)?,
+            ImageUser::Cohost => dispatch_apod_image_to_cohost(image, &session, palette.0, date).await?,
+        }        
     }
 
     Ok(())
