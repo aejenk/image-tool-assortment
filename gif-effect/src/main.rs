@@ -11,17 +11,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let palettes = palettes();
 
     let frames = GifRequest::Url {
-        url: "https://media.tenor.com/DxdIH1z9iw4AAAAC/cat-kill.gif",
+        url: "https://media.tenor.com/ndOR1gN4Q_cAAAAd/uap-dmt.gif",
     }.perform()?;
 
     for (name, palette) in palettes.iter() {
         println!("working for palette: {name}");
         let frames = frames.clone().into_iter()
             .map(|frame| frame
-                .apply(&Filter::Brighten( 0.2))
-                .apply(&Filter::Saturate( 0.2))
-                .apply(&Filter::Contrast(-4.0))
-                // .apply(&Filter::MultiplyHue(20.0))
+                .apply(&Filter::Brighten(-0.25))
+                .apply(&Filter::Saturate( 0.1))
+                .apply(&Filter::Contrast( 2.5))
+                .apply(&Filter::MultiplyHue(20.0))
                 // .apply(&Filter::RotateHue(180.0))
                 .apply(&Dither::Bayer(2, &palette)))
             .collect::<Vec<_>>();

@@ -14,9 +14,9 @@ mod palettes;
 fn main() -> Result<(), Box<dyn Error>> {
     let palettes = palettes::palettes();
 
-    let image = ImageRequest::Url {
-        url: "https://media.discordapp.net/attachments/1101139301057704099/1132652443621150802/image.png",
-        max_dim: Some(480),
+    let image = ImageRequest::File {
+        file: "./basic/data/input.png",
+        max_dim: Some(1920),
     }.perform()?;
 
     image.save("./basic/data/__SOURCE.png")?;
@@ -34,13 +34,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         image
             .clone()
             .apply(&Filter::Brighten(-0.2))
-            // .apply(&Filter::Contrast( 2.5))
+            .apply(&Filter::Contrast( 1.5))
             // .apply(&Filter::GradientMap(&gradient))
-            // .apply(&Filter::MultiplyHue(5.0))
+            // .apply(&Filter::MultiplyHue(3.0))
             // .apply(&Filter::RotateHue(180.0))
             .apply(&Dither::Bayer(8, palette))
             // .apply(&Dither::Atkinson(palette))
-            // .apply(&Filter::Contrast(-0.8))
+            // .apply(&Filter::Saturate(0.2))
+            // .apply(&Filter::Contrast(2.5))
+            .apply(&Filter::RotateHue(240.0))
+            // .apply(&Filter::MultiplyHue(80.0))
             .save(format!("./basic/data/output-{}.png", name))?;
     }
 
