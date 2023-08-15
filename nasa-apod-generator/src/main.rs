@@ -1,6 +1,7 @@
 use std::{error::Error, time::Duration};
 
 use image::{GenericImageView, DynamicImage, imageops};
+use nasa::ApodResponse;
 use palette::rgb::Rgb;
 use palettes::generate_palette_html;
 use rand::prelude::SliceRandom;
@@ -72,26 +73,26 @@ async fn execute() -> Result<(), Box<dyn Error>> {
         let palette = palettes.choose(&mut rng).unwrap();
         println!("generating image {i} using palette [{}]...", palette.0);
 
-        let (image, date) = dither_random_apod_image(&mut rng, &api_key, palette, USE_HD).unwrap();
+        let response = dither_random_apod_image(&mut rng, &api_key, palette, USE_HD).unwrap();
 
         match DO_WITH_IMAGE {
-            ImageUser::Save => save_image_locally(image, palette.0, &date)?,
-            ImageUser::Cohost => dispatch_apod_image_to_cohost(image, &session, palette.0, palette.1.clone(), date).await?,
+            ImageUser::Save => save_image_locally(response, palette.0)?,
+            ImageUser::Cohost => dispatch_apod_image_to_cohost(response, &session, palette.0, palette.1.clone()).await?,
         }        
     }
 
     Ok(())
 }
 
-fn save_image_locally(image: DynamicImage, palette_name: &str, date: &str) -> Result<(), Box<dyn Error>> {
-    Ok(image.save_with_format(
-        format!("./nasa-apod-generator/data/nasa-output-{palette_name}-{date}.png"),
+fn save_image_locally(response: ApodResponse, palette_name: &str) -> Result<(), Box<dyn Error>> {
+    Ok(response.image.save_with_format(
+        format!("./nasa-apod-generator/data/nasa-output-{palette_name}-{}.png", response.date),
         image::ImageFormat::Png
     )?)
 }
 
-async fn dispatch_apod_image_to_cohost(mut image: DynamicImage, session: &Session, palette_name: &str, palette: Vec<Rgb>, date: String) -> Result<(), Box<dyn Error>> {
-    let (mut width, mut height) = image.dimensions();
+async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Session, palette_name: &str, palette: Vec<Rgb>) -> Result<(), Box<dyn Error>> {
+    let (mut width, mut height) = response.image.dimensions();
 
     if (width * height) > (1920 * 1080) {
         fn resize_image(image: &DynamicImage, factor: f32) -> DynamicImage {
@@ -109,12 +110,12 @@ async fn dispatch_apod_image_to_cohost(mut image: DynamicImage, session: &Sessio
             }
         }
 
-        image = resize_image_with_max_dim(&image, 1920);
-        (width, height) = image.dimensions();
+        response.image = resize_image_with_max_dim(&response.image, 1080);
+        (width, height) = response.image.dimensions();
     }
 
     let temp_file_path = "._temporary.nasa.apod.result.png";
-    image.save(temp_file_path)?;
+    response.image.save(temp_file_path)?;
 
     let metadata = eggbug::MediaMetadata::Image { 
         width: Some(width),
@@ -124,25 +125,25 @@ async fn dispatch_apod_image_to_cohost(mut image: DynamicImage, session: &Sessio
     // let bytes = image.into_bytes();
     // let mut attachment = Attachment::new(bytes, format!("{date}-{palette_name}.png"), "image/png".into(), metadata);
     let mut attachment = Attachment::new_from_file(temp_file_path, "image/png".into(), Some(metadata)).await?;
-    attachment.alt_text = Some(format!("Astronomy Photo Of the Day for: {date}, dithered using {palette_name}."));
+    attachment.alt_text = Some(format!("Astronomy Photo Of the Day for: {}, dithered using {palette_name}. Titled: {}", response.date, response.title));
 
     let palette_html = generate_palette_html(palette);
 
     let mut post = Post {
         adult_content: false,
-        headline: format!("{date}"),
+        headline: format!("{} - {}", response.date, response.title),
         ask: None,
         attachments: vec![
             attachment
         ],
-        markdown: format!("**Palette:** *{palette_name}*\n{palette_html}"),
+        markdown: format!("**Explanation:** {} <hr/>\n**Palette:** *{palette_name}*\n{palette_html}", response.explanation),
         tags: vec![
             "apod".into(),
             "astronomy photo of the day".into(),
             "nasa".into(),
             "dithering".into(),
             "dither".into(),
-            date,
+            response.date,
             format!("palette({})", palette_name),
         ],
         content_warnings: vec![],

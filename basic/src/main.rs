@@ -33,8 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Palette: {}", name);
         image
             .clone()
-            .apply(&Filter::Brighten(-0.2))
-            .apply(&Filter::Contrast( 1.5))
+            // .apply(&Filter::Brighten(-0.2))
+            .apply(&Filter::Contrast( 1.2))
             // .apply(&Filter::GradientMap(&gradient))
             // .apply(&Filter::MultiplyHue(3.0))
             // .apply(&Filter::RotateHue(180.0))
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             // .apply(&Dither::Atkinson(palette))
             // .apply(&Filter::Saturate(0.2))
             // .apply(&Filter::Contrast(2.5))
-            .apply(&Filter::RotateHue(240.0))
+            // .apply(&Filter::RotateHue(240.0))
             // .apply(&Filter::MultiplyHue(80.0))
             .save(format!("./basic/data/output-{}.png", name))?;
     }
