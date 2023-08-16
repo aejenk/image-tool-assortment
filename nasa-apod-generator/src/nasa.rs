@@ -48,15 +48,13 @@ impl ApodResponse {
             &value["url"]
         };
 
-        let maxdim = if use_hd { 2160 } else { 1080 };
-
         let url = url.as_str().unwrap();
         let title = *&value["title"].as_str().unwrap();
         let explanation = *&value["explanation"].as_str().unwrap();
 
         let image = ImageRequest::Url {
             url: url,
-            max_dim: Some(maxdim),
+            max_dim: None,
         }.perform()?;
 
         Ok(ApodResponse { 
@@ -77,9 +75,16 @@ pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> UtilResult<
     ApodResponse::new_from_value(body, use_hd, date)
 }
 
+pub fn get_random_apod(rng: &mut ThreadRng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
+    get_apod_for_date(
+        api_key,
+        &generate_random_apod_date(rng),
+        use_hd
+    )
+}
+
 pub fn dither_random_apod_image(rng: &mut ThreadRng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> UtilResult<ApodResponse> {
-    let apod_date = generate_random_apod_date(rng);
-    let mut response = get_apod_for_date(api_key, &apod_date, use_hd)?;
+    let mut response = get_random_apod(rng, api_key, use_hd)?;
 
     response.image = response.image
         // .apply(&Filter::Contrast(1.2))

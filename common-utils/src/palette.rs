@@ -1,4 +1,4 @@
-use image_effects::{prelude::{SrgbColour as RGB, IntoGradient, palettes::EIGHT_BIT}, colour::utils::GradientMethod};
+use image_effects::{prelude::{SrgbColour as RGB, IntoGradient}, colour::utils::GradientMethod};
 use palette::{rgb::Rgb, Lch};
 
 pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> { 
@@ -103,9 +103,9 @@ pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> {
                 RGB::RED.build_gradient(40, GRADIENT_METHOD),
                 {
                     let mut red = RGB::RED.clone();
-                    red.red = 0.2;
+                    red.red = 0.4;
                     red 
-                }.build_gradient(40, GRADIENT_METHOD),
+                }.build_gradient(10, GRADIENT_METHOD),
                 // vec![RGB::BLACK, RGB::WHITE],
             ]
             .concat()
@@ -193,11 +193,20 @@ pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> {
             ].concat(),
         )
     ];
-    palettes.push((
-        "all",
-        palettes.iter().map(|col| (&col.1).clone()).collect::<Vec<_>>().concat(),
-    ));
     palettes
+}
+
+pub fn generate_palette_html(gradient: Vec<Rgb>) -> String {
+    let palette_html = gradient.iter().map(|colour| {
+        let (r, g, b) = colour.into_format::<u8>().into_components();
+        format!("<div style=\"height: 100%; background: rgb({r},{g},{b}); flex-grow: 1; padding:3px;\"></div>")
+    }).collect::<Vec<_>>().concat();
+
+    vec![
+        "<div style:\"width: 100%; display: flex; flex-wrap: wrap;\">",
+        &palette_html,
+        "</div>",
+    ].concat()
 }
 
 pub fn generate_hue_gradient(hue: f32) -> Vec<Vec<Lch>> {

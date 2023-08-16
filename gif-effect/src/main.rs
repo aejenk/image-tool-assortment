@@ -1,11 +1,9 @@
 use std::{fs::File, error::Error};
+use common_utils::{palette::palettes, image::GifRequest};
 use image::codecs::gif::GifEncoder;
 use image_effects::prelude::{Filter, Affectable, Dither};
-use image_effects::utils::image::GifRequest;
-use palettes::palettes;
 
 mod frame;
-mod palettes;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let palettes = palettes();

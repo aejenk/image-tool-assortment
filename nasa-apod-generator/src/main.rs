@@ -1,9 +1,10 @@
 use std::{error::Error, time::Duration};
 
-use image::{GenericImageView, DynamicImage, imageops};
+use common_utils::{palette::{palettes, generate_palette_html}, image::resize_image_with_max_dim};
+use image::GenericImageView;
+use image_effects::{prelude::Dither, Affectable};
 use nasa::ApodResponse;
 use palette::rgb::Rgb;
-use palettes::generate_palette_html;
 use rand::prelude::SliceRandom;
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
@@ -12,10 +13,9 @@ use futures::executor;
 use chrono;
 
 pub mod nasa;
-pub mod palettes;
 mod utils;
 
-use crate::{nasa::dither_random_apod_image, palettes::palettes};
+use crate::nasa::get_random_apod;
 
 const ITERATIONS: usize = 1;
 
@@ -34,6 +34,7 @@ async fn main() {
                     eprintln!("Retrying...");
                     continue;
                 }
+                println!("Completed loop! Returning to scheduler...");
                 break;
             };
         };
@@ -42,7 +43,7 @@ async fn main() {
 
     loop {
         scheduler.tick();
-        std::thread::sleep(Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -73,7 +74,12 @@ async fn execute() -> Result<(), Box<dyn Error>> {
         let palette = palettes.choose(&mut rng).unwrap();
         println!("generating image {i} using palette [{}]...", palette.0);
 
-        let response = dither_random_apod_image(&mut rng, &api_key, palette, USE_HD).unwrap();
+        let mut response = get_random_apod(&mut rng, &api_key, USE_HD)?;
+
+        response.image = resize_image_with_max_dim(&response.image, 720);
+
+        response.image = response.image
+            .apply(&Dither::Bayer(8, &palette.1));
 
         match DO_WITH_IMAGE {
             ImageUser::Save => save_image_locally(response, palette.0)?,
@@ -95,22 +101,7 @@ async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Ses
     let (mut width, mut height) = response.image.dimensions();
 
     if (width * height) > (1920 * 1080) {
-        fn resize_image(image: &DynamicImage, factor: f32) -> DynamicImage {
-            let (x, y) = image.dimensions();
-            let mul = |int: u32, float: f32| (int as f32 * float) as u32;
-            image.resize(mul(x, factor), mul(y, factor), imageops::Gaussian)
-        }
-        
-        fn resize_image_with_max_dim(image: &DynamicImage, maxdim: u32) -> DynamicImage {
-            let (x, y) = image.dimensions();
-            if maxdim < x.max(y) {
-                resize_image(&image, maxdim as f32 / x.max(y) as f32)
-            } else {
-                image.clone()
-            }
-        }
-
-        response.image = resize_image_with_max_dim(&response.image, 1080);
+        response.image = common_utils::image::resize_image_with_max_dim(&response.image, 720);
         (width, height) = response.image.dimensions();
     }
 

@@ -1,22 +1,25 @@
 use std::error::Error;
 
-use image::{GenericImageView};
+use common_utils::image::ImageRequest;
 use image_effects::{
     prelude::*,
-    utils::image::ImageRequest, gradient_map, GradientMap,
+    gradient_map, GradientMap,
 };
 use palette::{Lch, IntoColor, rgb::Rgb};
-
-mod palettes;
 
 // this file is essentially for testing / running the code, more than providing an actual reusable binary
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let palettes = palettes::palettes();
+    let palettes = common_utils::palette::palettes();
 
-    let image = ImageRequest::File {
-        file: "./basic/data/input.png",
-        max_dim: Some(1920),
+    // let image = ImageRequest::File {
+    //     file: "./basic/data/input.png",
+    //     max_dim: Some(1920),
+    // }.perform()?;
+
+    let image = ImageRequest::Url { 
+        url: "https://media.discordapp.net/attachments/1136571520525803620/1138538192044302426/ApplicationFrameHost_dHbAuJiO8w.png",
+        max_dim: Some(720), 
     }.perform()?;
 
     image.save("./basic/data/__SOURCE.png")?;
@@ -33,8 +36,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Palette: {}", name);
         image
             .clone()
-            // .apply(&Filter::Brighten(-0.2))
-            .apply(&Filter::Contrast( 1.2))
+            // .apply(&Filter::Brighten( 0.2))
+            .apply(&Filter::Contrast( 1.3))
             // .apply(&Filter::GradientMap(&gradient))
             // .apply(&Filter::MultiplyHue(3.0))
             // .apply(&Filter::RotateHue(180.0))
