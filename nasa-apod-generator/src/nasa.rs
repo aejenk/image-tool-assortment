@@ -1,9 +1,9 @@
-use std::error::Error;
+use std::{error::Error};
 
 use image::DynamicImage;
 use image_effects::{prelude::{Filter, Dither}, Affectable, utils::image::ImageRequest};
 use palette::rgb::Rgb;
-use rand::rngs::ThreadRng;
+use rand::{rngs::ThreadRng, Rng};
 use serde_json::Value;
 
 pub const API_URL: &'static str = "https://images-api.nasa.gov";
@@ -18,7 +18,7 @@ use crate::utils::generate_random_date_between;
 
 type UtilResult<T> = Result<T, Box<dyn Error>>;
 
-pub fn generate_random_apod_date(rng: &mut ThreadRng) -> String {
+pub fn generate_random_apod_date(rng: &mut impl Rng) -> String {
     // the first APOD image was in 1995/06/16.
     // as for the end date, it's hardcoded but technically should default to today.
     // i just didn't wanna look into getting that date yet - maybe soon
@@ -39,6 +39,29 @@ pub struct ApodResponse {
     pub date: String,
 }
 
+#[derive(Clone, Debug)]
+struct NoneError;
+
+impl std::fmt::Display for NoneError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Expected Some(..) but got None")
+    }
+}
+
+impl Error for NoneError {
+    fn cause(&self) -> Option<&dyn Error> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        ""
+    }
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 impl ApodResponse {
     pub fn new_from_value(value: Value, use_hd: bool, date: &str) -> UtilResult<ApodResponse> {
         
@@ -48,9 +71,9 @@ impl ApodResponse {
             &value["url"]
         };
 
-        let url = url.as_str().unwrap();
-        let title = *&value["title"].as_str().unwrap();
-        let explanation = *&value["explanation"].as_str().unwrap();
+        let url = url.as_str().ok_or(NoneError)?;
+        let title = *&value["title"].as_str().unwrap_or("(no title)");
+        let explanation = *&value["explanation"].as_str().unwrap_or("(no explanation)");
 
         let image = ImageRequest::Url {
             url: url,
@@ -75,7 +98,7 @@ pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> UtilResult<
     ApodResponse::new_from_value(body, use_hd, date)
 }
 
-pub fn get_random_apod(rng: &mut ThreadRng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
+pub fn get_random_apod(rng: &mut impl Rng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
     get_apod_for_date(
         api_key,
         &generate_random_apod_date(rng),
@@ -83,7 +106,7 @@ pub fn get_random_apod(rng: &mut ThreadRng, api_key: &str, use_hd: bool) -> Util
     )
 }
 
-pub fn dither_random_apod_image(rng: &mut ThreadRng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> UtilResult<ApodResponse> {
+pub fn dither_random_apod_image(rng: &mut impl Rng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> UtilResult<ApodResponse> {
     let mut response = get_random_apod(rng, api_key, use_hd)?;
 
     response.image = response.image

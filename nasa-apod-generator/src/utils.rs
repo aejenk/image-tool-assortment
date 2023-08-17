@@ -1,8 +1,8 @@
-use rand::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng};
+use rand::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng, Rng};
 
 type Date = (u32, u8, u8);
 
-pub fn generate_random_date_between(mut rng: &mut ThreadRng, start: Date, end: Date) -> Date {
+pub fn generate_random_date_between(mut rng: &mut impl Rng, start: Date, end: Date) -> Date {
     let earliest = start;
     let latest = end;
 

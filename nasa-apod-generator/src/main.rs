@@ -1,16 +1,17 @@
 use std::{error::Error, time::Duration};
 
+use clokwerk::{AsyncScheduler, TimeUnits, Job};
 use common_utils::{palette::{palettes, generate_palette_html}, image::resize_image_with_max_dim};
 use image::GenericImageView;
 use image_effects::{prelude::Dither, Affectable};
 use nasa::ApodResponse;
 use palette::rgb::Rgb;
-use rand::prelude::SliceRandom;
+use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
-use job_scheduler::{Job, JobScheduler};
 use futures::executor;
 use chrono;
+
 
 pub mod nasa;
 mod utils;
@@ -21,29 +22,26 @@ const ITERATIONS: usize = 1;
 
 #[tokio::main]
 async fn main() {
-    let mut scheduler = JobScheduler::new();
+    let mut scheduler = AsyncScheduler::new();
 
     println!("----- Launched on: {:?}", chrono::offset::Local::now());
 
-    scheduler.add(Job::new("0 0 * * * * *".parse().unwrap(), || {
+    scheduler.every(1.hour()).run(|| async {
         println!("----- Executing on: {:?}", chrono::offset::Local::now());
-        let executor = async {
-            loop {
-                if let Err(error) = execute().await {
-                    eprintln!("Error encountered: {}", error.to_string());
-                    eprintln!("Retrying...");
-                    continue;
-                }
-                println!("Completed loop! Returning to scheduler...");
-                break;
-            };
+        loop {
+            if let Err(error) = execute().await {
+                eprintln!("Error encountered: {}", error.to_string());
+                eprintln!("Retrying...");
+                continue;
+            }
+            println!("Completed loop! Returning to scheduler...\n");
+            break;
         };
-        executor::block_on(executor);
-    }));
+    });
 
     loop {
-        scheduler.tick();
-        std::thread::sleep(Duration::from_millis(100));
+        scheduler.run_pending().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 
@@ -69,7 +67,7 @@ async fn execute() -> Result<(), Box<dyn Error>> {
 
     let session = Session::login(&email, &password).await?;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::from_entropy();
     for i in 0..ITERATIONS {
         let palette = palettes.choose(&mut rng).unwrap();
         println!("generating image {i} using palette [{}]...", palette.0);
