@@ -3,7 +3,7 @@ use palette::{rgb::Rgb, Lch};
 
 pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> { 
     const GRADIENT_METHOD: GradientMethod = GradientMethod::LCH;
-    let mut palettes = vec![
+    let palettes = vec![
         (
             "pastel",
             [

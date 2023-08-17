@@ -25,10 +25,6 @@ async fn main() {
 
     println!("----- Launched on: {:?}", chrono::offset::Local::now());
 
-    println!("First Execution...");
-    let _ = execute().await;
-    println!("Uploaded successfully!\n");
-
     scheduler.every(1.hour()).run(|| async {
         println!("----- Executing on: {:?}", chrono::offset::Local::now());
         loop {
@@ -56,17 +52,6 @@ async fn execute() -> Result<(), Box<dyn Error>> {
     let password = std::env::var("COHOST_PASSWORD").expect("COHOST_PASSWORD must be set in the environment/.env.");
 
     const USE_HD: bool = true;
-    
-    enum ImageUser {
-        Save,
-        Cohost,
-    }
-
-    {
-        let _dead_warning_mute = (ImageUser::Cohost, ImageUser::Save);
-    }
-
-    const DO_WITH_IMAGE: ImageUser = ImageUser::Cohost;
 
     let session = Session::login(&email, &password).await?;
 
@@ -82,23 +67,27 @@ async fn execute() -> Result<(), Box<dyn Error>> {
         response.image = response.image
             .apply(&Dither::Bayer(8, &palette.1));
 
-        match DO_WITH_IMAGE {
-            ImageUser::Save => save_image_locally(response, palette.0)?,
-            ImageUser::Cohost => dispatch_apod_image_to_cohost(response, &session, palette.0, palette.1.clone()).await?,
-        }        
+        let image_filename = format!("./nasa-apod-generator/data/nasa-output-{}-{}", palette.0, response.date);
+        response.image.save_with_format(&image_filename, image::ImageFormat::Png)?;
+
+        dispatch_apod_image_to_cohost(
+            response,
+            &session,
+            &image_filename,
+            palette.to_owned()
+        ).await?;
     }
 
     Ok(())
 }
 
-fn save_image_locally(response: ApodResponse, palette_name: &str) -> Result<(), Box<dyn Error>> {
-    Ok(response.image.save_with_format(
-        format!("./nasa-apod-generator/data/nasa-output-{palette_name}-{}.png", response.date),
-        image::ImageFormat::Png
-    )?)
-}
-
-async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Session, palette_name: &str, palette: Vec<Rgb>) -> Result<(), Box<dyn Error>> {
+async fn dispatch_apod_image_to_cohost(
+    mut response: ApodResponse,
+    session: &Session,
+    filename: &str,
+    (palette_name, palette_cols): (&str, Vec<Rgb>)
+) -> Result<(), Box<dyn Error>> 
+{
     let (mut width, mut height) = response.image.dimensions();
 
     if (width * height) > (1920 * 1080) {
@@ -106,20 +95,20 @@ async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Ses
         (width, height) = response.image.dimensions();
     }
 
-    let temp_file_path = "._temporary.nasa.apod.result.png";
-    response.image.save(temp_file_path)?;
-
     let metadata = eggbug::MediaMetadata::Image { 
         width: Some(width),
         height: Some(height), 
     };
 
-    // let bytes = image.into_bytes();
-    // let mut attachment = Attachment::new(bytes, format!("{date}-{palette_name}.png"), "image/png".into(), metadata);
-    let mut attachment = Attachment::new_from_file(temp_file_path, "image/png".into(), Some(metadata)).await?;
+    let mut attachment = Attachment::new_from_file(
+        filename,
+        "image/png".into(),
+        Some(metadata)
+    ).await?;
+
     attachment.alt_text = Some(format!("Astronomy Photo Of the Day for: {}, dithered using {palette_name}. Titled: {}", response.date, response.title));
 
-    let palette_html = generate_palette_html(palette);
+    let palette_html = generate_palette_html(palette_cols);
 
     let mut post = Post {
         adult_content: false,
@@ -135,7 +124,10 @@ async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Ses
             "nasa".into(),
             "dithering".into(),
             "dither".into(),
-            response.date,
+            "ditherchosting".into(),
+            "astronomy".into(),
+            "bot".into(),
+            format!("apod-date({})", response.date),
             format!("palette({})", palette_name),
         ],
         content_warnings: vec![],
@@ -143,7 +135,8 @@ async fn dispatch_apod_image_to_cohost(mut response: ApodResponse, session: &Ses
         metadata: None,
     };
 
-    let _ = session.create_post("ditherpod", &mut post).await?;
+    let post_id = session.create_post("ditherpod", &mut post).await?;
+    println!("Published post (id: {})", post_id.0);
 
     Ok(())
 }

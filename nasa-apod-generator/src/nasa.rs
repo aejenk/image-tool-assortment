@@ -1,19 +1,13 @@
-use std::{error::Error};
-
 use image::DynamicImage;
-use image_effects::{prelude::Dither, Affectable};
-use palette::rgb::Rgb;
 use rand::Rng;
 use serde_json::Value;
 use common_utils::image::ImageRequest;
 
-use crate::utils::{generate_random_date_between, NoneError};
+use crate::utils::{generate_random_date_between, NoneError, UtilResult};
 
 #[inline] pub fn apod(api_key: &str, date: &str) -> String {
     format!("https://api.nasa.gov/planetary/apod?api_key={}&date={}&hd=true", api_key, date)
 }
-
-type UtilResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn generate_random_apod_date(rng: &mut impl Rng) -> String {
     // the first APOD image was in 1995/06/16.

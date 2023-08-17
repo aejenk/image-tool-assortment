@@ -1,8 +1,10 @@
 use std::error::Error;
 
-use rand::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng, Rng};
+use rand::{distributions::Uniform, prelude::Distribution, Rng};
 
-type Date = (u32, u8, u8);
+pub type Date = (u32, u8, u8);
+
+pub type UtilResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub fn generate_random_date_between(mut rng: &mut impl Rng, start: Date, end: Date) -> Date {
     let earliest = start;
