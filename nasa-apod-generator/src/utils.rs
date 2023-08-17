@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use rand::{distributions::Uniform, prelude::Distribution, rngs::ThreadRng, Rng};
 
 type Date = (u32, u8, u8);
@@ -37,4 +39,27 @@ pub fn generate_random_date_between(mut rng: &mut impl Rng, start: Date, end: Da
     };
 
     (year, month, day)
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct NoneError;
+
+impl std::fmt::Display for NoneError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Expected Some(..) but got None")
+    }
+}
+
+impl Error for NoneError {
+    fn cause(&self) -> Option<&dyn Error> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        ""
+    }
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
 }

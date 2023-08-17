@@ -1,16 +1,13 @@
 use std::{error::Error};
 
 use image::DynamicImage;
-use image_effects::{prelude::{Filter, Dither}, Affectable, utils::image::ImageRequest};
+use image_effects::{prelude::Dither, Affectable};
 use palette::rgb::Rgb;
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
 use serde_json::Value;
+use common_utils::image::ImageRequest;
 
-pub const API_URL: &'static str = "https://images-api.nasa.gov";
-
-pub const BASE_URL: &'static str = "https://images-api.nasa.gov";
-
-use crate::utils::generate_random_date_between;
+use crate::utils::{generate_random_date_between, NoneError};
 
 #[inline] pub fn apod(api_key: &str, date: &str) -> String {
     format!("https://api.nasa.gov/planetary/apod?api_key={}&date={}&hd=true", api_key, date)
@@ -37,29 +34,6 @@ pub struct ApodResponse {
     pub title: String,
     pub explanation: String,
     pub date: String,
-}
-
-#[derive(Clone, Debug)]
-struct NoneError;
-
-impl std::fmt::Display for NoneError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Expected Some(..) but got None")
-    }
-}
-
-impl Error for NoneError {
-    fn cause(&self) -> Option<&dyn Error> {
-        None
-    }
-
-    fn description(&self) -> &str {
-        ""
-    }
-
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }
 
 impl ApodResponse {
@@ -98,21 +72,10 @@ pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> UtilResult<
     ApodResponse::new_from_value(body, use_hd, date)
 }
 
-pub fn get_random_apod(rng: &mut impl Rng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
+#[inline] pub fn get_random_apod(rng: &mut impl Rng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
     get_apod_for_date(
         api_key,
         &generate_random_apod_date(rng),
         use_hd
     )
-}
-
-pub fn dither_random_apod_image(rng: &mut impl Rng, api_key: &str, palette: &(&str, Vec<Rgb>), use_hd: bool) -> UtilResult<ApodResponse> {
-    let mut response = get_random_apod(rng, api_key, use_hd)?;
-
-    response.image = response.image
-        // .apply(&Filter::Contrast(1.2))
-        .apply(&Dither::Bayer(8, &palette.1));
-    //  .save(format!("./nasa-apod-generator/data/nasa-output-{}-({apod_date}){}.png", palette.0, if use_hd { "-hd" } else { "" }));
-
-    Ok(response)
 }

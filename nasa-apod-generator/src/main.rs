@@ -1,6 +1,6 @@
 use std::{error::Error, time::Duration};
 
-use clokwerk::{AsyncScheduler, TimeUnits, Job};
+use clokwerk::{AsyncScheduler, TimeUnits};
 use common_utils::{palette::{palettes, generate_palette_html}, image::resize_image_with_max_dim};
 use image::GenericImageView;
 use image_effects::{prelude::Dither, Affectable};
@@ -9,7 +9,6 @@ use palette::rgb::Rgb;
 use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
-use futures::executor;
 use chrono;
 
 
@@ -25,6 +24,10 @@ async fn main() {
     let mut scheduler = AsyncScheduler::new();
 
     println!("----- Launched on: {:?}", chrono::offset::Local::now());
+
+    println!("First Execution...");
+    let _ = execute().await;
+    println!("Uploaded successfully!\n");
 
     scheduler.every(1.hour()).run(|| async {
         println!("----- Executing on: {:?}", chrono::offset::Local::now());
