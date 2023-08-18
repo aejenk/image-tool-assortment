@@ -1,9 +1,7 @@
 use std::{fs::File, error::Error};
 use common_utils::{palette::palettes, image::GifRequest};
 use image::codecs::gif::GifEncoder;
-use image_effects::prelude::{Filter, Affectable, Dither};
-
-mod frame;
+use image_effects::{prelude::*, dither::bayer::Bayer};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let palettes = palettes();
@@ -12,16 +10,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         url: "https://media.tenor.com/ndOR1gN4Q_cAAAAd/uap-dmt.gif",
     }.perform()?;
 
-    for (name, palette) in palettes.iter() {
+    for (name, palette) in palettes {
         println!("working for palette: {name}");
         let frames = frames.clone().into_iter()
             .map(|frame| frame
-                .apply(&Filter::Brighten(-0.25))
-                .apply(&Filter::Saturate( 0.1))
-                .apply(&Filter::Contrast( 2.5))
-                .apply(&Filter::MultiplyHue(20.0))
+                .apply(&filters::Brighten(-0.25))
+                .apply(&filters::Saturate( 0.1))
+                .apply(&filters::Contrast( 2.5))
+                .apply(&filters::MultiplyHue(20.0))
                 // .apply(&Filter::RotateHue(180.0))
-                .apply(&Dither::Bayer(2, &palette)))
+                .apply(&Bayer::new(2, palette.clone())))
             .collect::<Vec<_>>();
 
         let file_out = File::create(format!("./gif-effect/data/output-{name}.gif")).unwrap();

@@ -3,7 +3,7 @@ use std::{error::Error, time::Duration};
 use clokwerk::{AsyncScheduler, TimeUnits};
 use common_utils::{palette::{palettes, generate_palette_html}, image::resize_image_with_max_dim};
 use image::GenericImageView;
-use image_effects::{prelude::Dither, Affectable};
+use image_effects::{prelude::*, dither::bayer::Bayer};
 use nasa::ApodResponse;
 use palette::rgb::Rgb;
 use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
@@ -65,9 +65,9 @@ async fn execute() -> Result<(), Box<dyn Error>> {
         response.image = resize_image_with_max_dim(&response.image, 720);
 
         response.image = response.image
-            .apply(&Dither::Bayer(8, &palette.1));
+            .apply(&Bayer::new(8, palette.1.clone()));
 
-        let image_filename = format!("./nasa-apod-generator/data/nasa-output-{}-{}", palette.0, response.date);
+        let image_filename = format!("./nasa-apod-generator/data/nasa-output-{}-{}.png", palette.0, response.date);
         response.image.save_with_format(&image_filename, image::ImageFormat::Png)?;
 
         dispatch_apod_image_to_cohost(

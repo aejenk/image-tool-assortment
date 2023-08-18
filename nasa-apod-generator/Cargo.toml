@@ -9,7 +9,7 @@ chrono = "0.4.26"
 dotenv = "0.15.0"
 eggbug = "0.2.0"
 image = "0.24.6"
-image-effects = { git = "https://github.com/enbyss/image-filters" }
+image-effects = "0.1.0"
 palette = "0.7.2"
 rand = { version = "0.8.5", features = ["std_rng"] }
 reqwest = { version = "0.11.18", features = ["json", "blocking"] }

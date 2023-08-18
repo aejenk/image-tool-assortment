@@ -3,7 +3,7 @@ use std::error::Error;
 use common_utils::image::ImageRequest;
 use image_effects::{
     prelude::*,
-    gradient_map, GradientMap,
+    gradient_map, GradientMap, dither::bayer::Bayer,
 };
 use palette::{Lch, IntoColor, rgb::Rgb};
 
@@ -13,12 +13,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let palettes = common_utils::palette::palettes();
 
     // let image = ImageRequest::File {
-    //     file: "./basic/data/input.png",
-    //     max_dim: Some(1920),
+    //     file: "./basic/data/input.jpg",
+    //     max_dim: Some(720),
     // }.perform()?;
 
     let image = ImageRequest::Url { 
-        url: "https://media.discordapp.net/attachments/1136571520525803620/1138538192044302426/ApplicationFrameHost_dHbAuJiO8w.png",
+        url: "https://media.discordapp.net/attachments/766775857372463144/1141927756586831882/20230817_225216.jpg",
         max_dim: Some(720), 
     }.perform()?;
 
@@ -32,16 +32,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         1.00 => Lch::new(100.0, 0.0, 0.0).into_color()
     );
 
-    for (name, palette) in palettes.iter() {
+    for (name, palette) in palettes {
         println!("Palette: {}", name);
         image
             .clone()
-            // .apply(&Filter::Brighten( 0.2))
-            .apply(&Filter::Contrast( 1.3))
+            // .apply(&Filter::Brighten( 0.1))
+            // .apply(&Filter::Contrast( 2.0))
             // .apply(&Filter::GradientMap(&gradient))
             // .apply(&Filter::MultiplyHue(3.0))
-            // .apply(&Filter::RotateHue(180.0))
-            .apply(&Dither::Bayer(8, palette))
+            // .apply(&Filter::RotateHue(60.0))
+            .apply(&Bayer::new(8, palette))
             // .apply(&Dither::Atkinson(palette))
             // .apply(&Filter::Saturate(0.2))
             // .apply(&Filter::Contrast(2.5))
