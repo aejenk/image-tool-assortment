@@ -1,17 +1,16 @@
 use std::{fs::File, error::Error};
-use common_utils::{palette::{palettes, generate_random_palette, generate_n_random_palettes}, image::GifRequest, effectlog::{LogEntry, ExecLog}};
+use common_utils::{palette::{palettes, generate_random_palette, generate_n_random_palettes}, image::{ImageRequest}, effectlog::{LogEntry, ExecLog}};
 use image::{codecs::gif::GifEncoder, Frame};
 use image_effects::{prelude::*, dither::bayer::Bayer};
 use palette::{rgb::Rgb, Lch, IntoColor, named};
 use rand::{rngs::StdRng, SeedableRng, Rng, seq::SliceRandom};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // let mut rng = StdRng::from_entropy();
-    // let palettes = palettes();
-
-    let frames = GifRequest::Url {
-        url: "https://media.tenor.com/g6k9FsdOUtIAAAAM/deer-weirdo.gif",
-    }.perform()?;
+    let frames = ImageRequest::new("https://media.tenor.com/g6k9FsdOUtIAAAAM/deer-weirdo.gif".into())
+        .gif()
+        .url()
+        .perform()?
+        .into_gif()?;
 
     generate_gifs_with_n_random_palettes(frames, 250)?;
     // generate_gifs_with_alternating_palettes(frames, 250)?;

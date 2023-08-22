@@ -43,10 +43,12 @@ impl ApodResponse {
         let title = *&value["title"].as_str().unwrap_or("(no title)");
         let explanation = *&value["explanation"].as_str().unwrap_or("(no explanation)");
 
-        let image = ImageRequest::Url {
-            url: url,
-            max_dim: None,
-        }.perform()?;
+        let image = ImageRequest::new(url.into())
+            .url()
+            .image()
+            .keep_size()
+            .perform()?
+            .into_image()?;
 
         Ok(ApodResponse { 
             image: image,

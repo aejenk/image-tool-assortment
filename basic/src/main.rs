@@ -10,18 +10,13 @@ use palette::{Lch, IntoColor, rgb::Rgb, named};
 use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom, Rng};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let image = ImageRequest::File {
-        file: "./basic/data/_input.png",
-        max_dim: Some(720),
-    }.perform()?;
 
-    //let image = ImageRequest::Url { 
-    //    url: "https://lh3.googleusercontent.com/pw/AIL4fc-WFgChmSRG0RyjLBMEx5JmWrkyXzQRXaNvCNyZzKI2Cv6z0XHzf7lQ4npeipeZ3N95Nov7yWK6Eh-gQnEViPIao2-qfo-ggyWRpj2jV0pLOhoC7KiceovLwySHPPG2QT6iyIIBUC_C2vW7Gq04XhcD8n1_SCno-c9W_mW29RSCAPiMAvSazWt6BWq0RmEgBPECxg4XQKgHpXkZdQdpRYNSJ9lQudpzoEFTq-gL8Swjp9q360p-Ke4i3mci4HzuBz3DNyjcCyKqP62iaYDHYp34gIEhKvTKOIiLkhHlvvBGzYQwniP1sZPQUfcqJG5kXRqSXu0ZTngKOtbgejj1sudSNETK9mY687-JgHBMJYVcbH8Ctj1sbcYDjNwtMMkgbPi6XhjDJ0Vy4zo5scWxe-dFu5t9-Ijixxx4rTF3al0G2xeViGKy-0PP_pakllOIukJof3nvguvEDWZf9O5GrkP4ZcP4I-R7SAeJjLN6OZH5U2246tMLprNhFZT6YdmrGp4IMWxNoLidR5cjuZ3NGou53-zvl5EN9J-oaI__9Xjdy46F_9kcLqijjTjN5nBQ7TzXOqNS0XzVvvkv8MHAR9gIFTPmwGB01w1qtM6eJI3jKDyqdcvgWc6-tNPfIaXFb1M9D6dmuVI9uMRYPDdOgpUUNzxzicWn_oaITX3IiLZqo01sFyi2E_sNphEuiduPUzkp8forZg18R9fl24MbypYhORg9jxcYxeHm47u60AiOgK4ckL5SJ6HH3Oi6TZnu8dAk0wE8x5jMy3LEp5dnyhyTGIwLYPWTEi413-3E_T2yKCtblWMRyJMqoRs3bCl_MlXAm_Gl2ydR0cUU53daCoOgvEsT0RMKlhAuf01SdI9p-Ivj-e8CPeIbPxQPMtld3UnyNJBiO_iyh6MKcaloaNJBEdY=w705-h940-s-no?authuser=0",
-    //    // max_dim: None,
-    //    // max_dim: Some(1080), 
-    //    max_dim: Some(720),
-    //    // max_dim: Some(360),
-    //}.perform()?;
+    let image = ImageRequest::new("https://media.discordapp.net/attachments/908523233471520828/1143547682384777216/B5F82A24-74DA-4F7B-90A8-3E08D16037AD.jpg".into())
+        .image()
+        .with_max_dim(720)
+        .perform()?
+        .into_image()?;
+        
 
     image.save("./basic/data/__SOURCE.png")?;
 
@@ -43,7 +38,7 @@ fn generate_images_with_n_random_palettes(image: DynamicImage, n: usize) -> Resu
 
         let possible_matrix_sizes = [2, 4, 8, 16];
         let matrix_size = possible_matrix_sizes.choose(&mut rng).unwrap();
-        let matrix_size = &2;
+        // let matrix_size = &2;
 
         let mut effects: Vec<Box<dyn Effect<DynamicImage>>> = Vec::new();
 
