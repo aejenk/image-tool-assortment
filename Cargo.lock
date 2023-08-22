@@ -80,7 +80,7 @@ version = "0.1.0"
 dependencies = [
  "common-utils",
  "image",
- "image-effects 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image-effects",
  "palette",
  "rand",
 ]
@@ -188,8 +188,9 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.2",
  "image",
- "image-effects 0.1.0 (git+https://github.com/enbyss/image-filters)",
+ "image-effects",
  "palette",
+ "rand",
  "reqwest",
 ]
 
@@ -614,8 +615,9 @@ dependencies = [
  "common-utils",
  "gif",
  "image",
- "image-effects 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image-effects",
  "palette",
+ "rand",
  "reqwest",
 ]
 
@@ -832,20 +834,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-effects"
-version = "0.1.0"
-source = "git+https://github.com/enbyss/image-filters#425c123e668dabfa74068267d8efbddaf3a29e3c"
-dependencies = [
- "base64 0.21.2",
- "image",
- "ndarray",
- "num",
- "once_cell",
- "palette",
- "reqwest",
-]
-
-[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1013,7 +1001,7 @@ dependencies = [
  "dotenv",
  "eggbug",
  "image",
- "image-effects 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image-effects",
  "palette",
  "rand",
  "reqwest",

@@ -1,12 +1,12 @@
 use std::{error::Error, time::Duration};
 
 use clokwerk::{AsyncScheduler, TimeUnits};
-use common_utils::{palette::{palettes, generate_palette_html}, image::resize_image_with_max_dim};
+use common_utils::{palette::{palettes, generate_palette_html, generate_random_palette}, image::resize_image_with_max_dim};
 use image::GenericImageView;
 use image_effects::{prelude::*, dither::bayer::Bayer};
 use nasa::ApodResponse;
 use palette::rgb::Rgb;
-use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
+use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng, Rng};
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
 use chrono;
@@ -46,7 +46,6 @@ async fn main() {
 
 async fn execute() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
-    let palettes = palettes();
     let api_key = std::env::var("NASA_API_KEY").expect("NASA_API_KEY must be set in the environment/.env.");
     let email = std::env::var("COHOST_EMAIL").expect("COHOST_EMAIL must be set in the environment/.env.");
     let password = std::env::var("COHOST_PASSWORD").expect("COHOST_PASSWORD must be set in the environment/.env.");
@@ -56,6 +55,24 @@ async fn execute() -> Result<(), Box<dyn Error>> {
     let session = Session::login(&email, &password).await?;
 
     let mut rng = StdRng::from_entropy();
+
+    let mut _palettes = Vec::new();
+
+    if rng.gen_bool(0.25) {
+        println!("generating palettes...");
+        for i in 0..50 {
+            _palettes.push((
+                format!("generated({i})"),
+                generate_random_palette(&mut rng).0
+            ));
+        }
+    } else {
+        println!("using predetermined palettes...");
+        _palettes = palettes().into_iter().map(|(n, p)| (n.into(), p)).collect();
+    }
+
+    let palettes = _palettes;
+
     for i in 0..ITERATIONS {
         let palette = palettes.choose(&mut rng).unwrap();
         println!("generating image {i} using palette [{}]...", palette.0);
@@ -74,7 +91,7 @@ async fn execute() -> Result<(), Box<dyn Error>> {
             response,
             &session,
             &image_filename,
-            palette.to_owned()
+            (palette.0.as_str(), palette.1.clone()),
         ).await?;
     }
 
