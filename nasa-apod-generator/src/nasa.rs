@@ -16,7 +16,7 @@ pub fn generate_random_apod_date(rng: &mut impl Rng) -> String {
     let (year, month, day) = generate_random_date_between(
         rng,
         (1995, 06, 16),
-        (2023, 08, 06)
+        (2023, 08, 31)
     );
 
     format!("{year}-{month:0>2}-{day:0>2}")
@@ -31,15 +31,15 @@ pub struct ApodResponse {
 }
 
 impl ApodResponse {
-    pub fn new_from_value(value: Value, use_hd: bool, date: &str) -> UtilResult<ApodResponse> {
-        
-        let url = if use_hd {
-            &value["hdurl"]
+    pub fn new_from_value(value: Value, date: &str) -> UtilResult<ApodResponse> {
+        let url = if let Some(url) = &value["hdurl"].as_str() {
+            *url
+        } else if let Some(url) = &value["url"].as_str() {
+            *url
         } else {
-            &value["url"]
+            return Err(Box::new(NoneError));
         };
 
-        let url = url.as_str().ok_or(NoneError)?;
         let title = *&value["title"].as_str().unwrap_or("(no title)");
         let explanation = *&value["explanation"].as_str().unwrap_or("(no explanation)");
 
@@ -60,18 +60,17 @@ impl ApodResponse {
     }
 }
 
-pub fn get_apod_for_date(api_key: &str, date: &str, use_hd: bool) -> UtilResult<ApodResponse> {
+pub fn get_apod_for_date(api_key: &str, date: &str) -> UtilResult<ApodResponse> {
     println!("retrieving apod at {date} from nasa...");
 
     let body = reqwest::blocking::get(apod(api_key, date))?.json::<serde_json::Value>()?;
 
-    ApodResponse::new_from_value(body, use_hd, date)
+    ApodResponse::new_from_value(body, date)
 }
 
-#[inline] pub fn get_random_apod(rng: &mut impl Rng, api_key: &str, use_hd: bool) -> UtilResult<ApodResponse> {
+#[inline] pub fn get_random_apod(rng: &mut impl Rng, api_key: &str) -> UtilResult<ApodResponse> {
     get_apod_for_date(
         api_key,
         &generate_random_apod_date(rng),
-        use_hd
     )
 }

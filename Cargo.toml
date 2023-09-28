@@ -5,4 +5,8 @@ members = [
     "basic",
     "gif-effect",
     "common-utils",
+    "imgtoy",
 ]
+
+
+resolver = "1"

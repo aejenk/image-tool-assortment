@@ -4,15 +4,18 @@ use common_utils::{image::ImageRequest, effectlog::{LogEntry, ExecLog}, palette:
 use image::DynamicImage;
 use image_effects::{
     prelude::*,
-    gradient_map, GradientMap, dither::bayer::Bayer,
+    gradient_map, GradientMap, dither::{bayer::Bayer, ATKINSON},
 };
 use palette::{Lch, IntoColor, rgb::Rgb, named};
 use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom, Rng};
 
 fn main() -> Result<(), Box<dyn Error>> {
 
-    let image = ImageRequest::new("https://media.discordapp.net/attachments/908523233471520828/1143547682384777216/B5F82A24-74DA-4F7B-90A8-3E08D16037AD.jpg".into())
+    const TARGET: &'static str = "https://images.enbyss.com/_/gallery/eye-of-mine.png";
+
+    let image = ImageRequest::new(TARGET.into())
         .image()
+        .url()
         .with_max_dim(720)
         .perform()?
         .into_image()?;
@@ -42,25 +45,29 @@ fn generate_images_with_n_random_palettes(image: DynamicImage, n: usize) -> Resu
 
         let mut effects: Vec<Box<dyn Effect<DynamicImage>>> = Vec::new();
 
+        if rng.gen_bool(0.1) {
+            effects.push(Box::new(filters::Contrast(-1.0)));
+        }
+
         if rng.gen_bool(0.5) {
             let contrast_factor = rng.gen_range(1.0..3.0);    
-            log.add_entry(LogEntry::effect("contrast".into(), contrast_factor.to_string()));
             effects.push(Box::new(filters::Contrast(contrast_factor)));
         }
         if rng.gen_bool(0.5) {
             let luma_factor = rng.gen_range(-0.3..0.3);
-            log.add_entry(LogEntry::effect("brighten".into(), luma_factor.to_string()));
             effects.push(Box::new(filters::Brighten(luma_factor)));
         }
         if rng.gen_bool(0.5) {
             let hue_shift = rng.gen_range(0.0..360.0); 
-            log.add_entry(LogEntry::effect("hue-rotate".into(), hue_shift.to_string()));
             effects.push(Box::new(filters::HueRotate(hue_shift)));
         }
         if rng.gen_bool(0.5) {
             let chroma_factor = rng.gen_range(-0.3..0.3); 
-            log.add_entry(LogEntry::effect("saturate".into(), chroma_factor.to_string()));
             effects.push(Box::new(filters::Saturate(chroma_factor)));
+        }
+        if rng.gen_bool(0.25) {
+            let multiplier = rng.gen_range(2.0..=12.0);
+            effects.push(Box::new(filters::MultiplyHue(multiplier)));
         }
 
         let mut image = image.clone();
@@ -69,12 +76,14 @@ fn generate_images_with_n_random_palettes(image: DynamicImage, n: usize) -> Resu
             image = effect.affect(image);
         }
 
-        log.add_entry(LogEntry::effect("dither(bayer)".into(), format!("matrix-size({matrix_size})")));
+        image = image.apply(&Bayer::new(*matrix_size as usize, palette));
 
-        image.apply(&Bayer::new(*matrix_size as usize, palette))
-            .save(format!("./basic/data/gen-output-{i}.png"))?;
+        // image.apply(&ATKINSON.with_palette(palette))
+        //     .save(format!("./basic/data/gen-output-{i}.png"))?;
 
-        log.write_to(format!("./basic/data/gen-output-{i}.log.txt").as_str())?;
+        image.save(format!("./basic/data/gen-output-{i}.png"))?;
+
+        // log.write_to(format!("./basic/data/gen-output-{i}.log.txt").as_str())?;
     }
 
     Ok(())

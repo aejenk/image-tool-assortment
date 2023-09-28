@@ -1,0 +1,24 @@
+source:
+  url: "P:\\architect\\live thumbnails\\post-stream\\lisa-the-painful-[p1].png"
+  media_type: "image"
+
+output:
+  path: "./imgtoy/output/output"
+  n: 5
+    
+effects:
+  - hue-rotate: { min: 0.0, max: 360.0 }
+  - brighten: { min: -0.1, max: 0.1 }
+  - saturate: [-0.5, 0.0, 0.5]
+  - multiply-hue: 3.0
+
+  - quantize-hue:
+      - 0.0
+      - [90.0, 180.0, 270.0]
+      - { min: 0.0, max: 360.0 }
+      - { min: 0.0, max: 360.0 }
+      - { min: 0.0, max: 360.0 }
+
+  - bayer:
+      matrix-size: 8
+      palette: "random"

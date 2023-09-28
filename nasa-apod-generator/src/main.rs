@@ -25,7 +25,10 @@ async fn main() {
 
     println!("----- Launched on: {:?}", chrono::offset::Local::now());
 
-    scheduler.every(1.hour()).run(|| async {
+    // for testing
+    // let _ = execute().await;
+
+    scheduler.every(3.hour()).run(|| async {
         println!("----- Executing on: {:?}", chrono::offset::Local::now());
         loop {
             if let Err(error) = execute().await {
@@ -49,8 +52,6 @@ async fn execute() -> Result<(), Box<dyn Error>> {
     let api_key = std::env::var("NASA_API_KEY").expect("NASA_API_KEY must be set in the environment/.env.");
     let email = std::env::var("COHOST_EMAIL").expect("COHOST_EMAIL must be set in the environment/.env.");
     let password = std::env::var("COHOST_PASSWORD").expect("COHOST_PASSWORD must be set in the environment/.env.");
-
-    const USE_HD: bool = true;
 
     let session = Session::login(&email, &password).await?;
 
@@ -77,9 +78,9 @@ async fn execute() -> Result<(), Box<dyn Error>> {
         let palette = palettes.choose(&mut rng).unwrap();
         println!("generating image {i} using palette [{}]...", palette.0);
 
-        let mut response = get_random_apod(&mut rng, &api_key, USE_HD)?;
+        let mut response = get_random_apod(&mut rng, &api_key)?;
 
-        response.image = resize_image_with_max_dim(&response.image, 720);
+        response.image = resize_image_with_max_dim(&response.image, 1080);
 
         response.image = response.image
             .apply(&Bayer::new(8, palette.1.clone()));
@@ -123,7 +124,8 @@ async fn dispatch_apod_image_to_cohost(
         Some(metadata)
     ).await?;
 
-    attachment.alt_text = Some(format!("Astronomy Photo Of the Day for: {}, dithered using {palette_name}. Titled: {}", response.date, response.title));
+    let alt_text = format!("Astronomy Photo Of the Day for: {}, dithered using {palette_name}. Titled: {}", response.date, response.title);
+    attachment.alt_text = Some(alt_text.clone());
 
     let palette_html = generate_palette_html(palette_cols);
 
@@ -134,7 +136,11 @@ async fn dispatch_apod_image_to_cohost(
         attachments: vec![
             attachment
         ],
-        markdown: format!("**Explanation:** {} <hr/>\n**Palette:** *{palette_name}*\n{palette_html}", response.explanation),
+        markdown: vec![
+            format!("**Explanation:** {}", response.explanation),
+            format!("<hr/>\n**Palette:** *{palette_name}*\n{palette_html}"),
+            format!("<hr/>\n\n## Original\n\n![{}]({})", response.title, response.url),
+        ].join(""),
         tags: vec![
             "apod".into(),
             "astronomy photo of the day".into(),
@@ -142,7 +148,7 @@ async fn dispatch_apod_image_to_cohost(
             "dithering".into(),
             "dither".into(),
             "ditherchosting".into(),
-            "astronomy".into(),
+            // "astronomy".into(),
             "bot".into(),
             format!("apod-date({})", response.date),
             format!("palette({})", palette_name),

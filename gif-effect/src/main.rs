@@ -6,7 +6,10 @@ use palette::{rgb::Rgb, Lch, IntoColor, named};
 use rand::{rngs::StdRng, SeedableRng, Rng, seq::SliceRandom};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let frames = ImageRequest::new("https://media.tenor.com/g6k9FsdOUtIAAAAM/deer-weirdo.gif".into())
+
+    const TARGET: &'static str = "https://media.tenor.com/z7CgyBnsPAYAAAAC/sunset-cool.gif";
+
+    let frames = ImageRequest::new(TARGET.into())
         .gif()
         .url()
         .perform()?
@@ -47,6 +50,10 @@ fn generate_gifs_with_alternating_palettes(frames: Vec<Frame>, n: usize) -> Resu
         let mut effects: Vec<Box<dyn Effect<Frame>>> = Vec::new();
 
         // effects.push(Box::new(filters::Contrast(10.0)));
+
+        if rng.gen_bool(0.1) {
+            effects.push(Box::new(filters::Contrast(-1.0)));
+        }
 
         if rng.gen_bool(0.5) {
             let contrast_factor = rng.gen_range(1.0..3.0);    
@@ -93,7 +100,7 @@ fn generate_gifs_with_alternating_palettes(frames: Vec<Frame>, n: usize) -> Resu
         encoder.set_repeat(image::codecs::gif::Repeat::Infinite).unwrap();
         encoder.encode_frames(frames.into_iter()).unwrap();
 
-        log.write_to(format!("./gif-effect/data/gen-output-{i}.log.txt").as_str())?;
+        // log.write_to(format!("./gif-effect/data/gen-output-{i}.log.txt").as_str())?;
     }
 
     Ok(())
@@ -108,6 +115,10 @@ fn generate_gifs_with_n_random_palettes(frames: Vec<Frame>, n: usize) -> Result<
         let (palette, mut log) = generate_random_palette(&mut rng);
 
         let mut effects: Vec<Box<dyn Effect<Frame>>> = Vec::new();
+
+        if rng.gen_bool(0.1) {
+            effects.push(Box::new(filters::Contrast(-1.0)));
+        }
 
         if rng.gen_bool(0.5) {
             let contrast_factor = rng.gen_range(1.0..3.0);    
@@ -148,7 +159,7 @@ fn generate_gifs_with_n_random_palettes(frames: Vec<Frame>, n: usize) -> Result<
         encoder.set_repeat(image::codecs::gif::Repeat::Infinite).unwrap();
         encoder.encode_frames(frames.into_iter()).unwrap();
 
-        log.write_to(format!("./gif-effect/data/gen-output-{i}.log.txt").as_str())?;
+        // log.write_to(format!("./gif-effect/data/gen-output-{i}.log.txt").as_str())?;
     }
 
     Ok(())

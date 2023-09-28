@@ -5,7 +5,7 @@ use std::io::{Cursor, Read};
 use base64::Engine;
 use image::codecs::gif::GifDecoder;
 use image::io::Reader as ImageReader;
-use image::{self, imageops, DynamicImage, GenericImageView, Frame, AnimationDecoder};
+use image::{self, imageops, DynamicImage, GenericImageView, Frame, AnimationDecoder, Frames, EncodableLayout};
 
 type UtilResult<T> = Result<T,Box<dyn Error>>;
 
@@ -123,9 +123,23 @@ pub fn image_to_b64(image: &DynamicImage) -> UtilResult<String> {
     Ok(base64::engine::general_purpose::STANDARD_NO_PAD.encode(buf))
 }
 
+pub fn gif_to_b64(gif: Vec<Frame>) -> UtilResult<String> {    
+    let bytes = gif
+        .into_iter()
+        .map(|frame| frame.buffer().as_bytes().to_vec())
+        .collect::<Vec<_>>().concat();
+
+    Ok(base64::engine::general_purpose::STANDARD_NO_PAD.encode(bytes))
+}
+
 pub fn b64_to_image(b64: &str) -> UtilResult<DynamicImage> {
     let bytes = base64::engine::general_purpose::STANDARD.decode(b64)?;
     Ok(image::load_from_memory(&bytes)?)
+}
+
+pub fn b64_to_gif(b64: &str) -> UtilResult<Vec<Frame>> {
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b64)?;
+    Ok(GifDecoder::new(bytes.as_slice())?.into_frames().collect_frames()?)
 }
 
 // Resize functions

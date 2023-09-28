@@ -1,0 +1,69 @@
+# The source defines the input. 
+source:
+  # You can do this either via a URL for processing an image on the web...
+  url: "..."
+  # ...or with a local file! Gotta pick just one though.
+  file: "..."
+  # Here you need to specify whether it's an "image" or a "gif"
+  media_type: "image"
+  # If you'd like to enforce a maximum dimension, you can do so here!
+  max_dim: 720
+
+# Here you define the output.
+output:
+  # This is where it'll end up...
+  path: "./imgtoy/output/output"
+  # ...and this is how many iterations you'd like.
+  # especially useful if using randomization (via ranges or choice).
+  n: 1
+
+# The bulk of the processing - here's where you define the effects you'd
+# like applied to the image.
+effects:
+  # Here's an example of a filter, 'contrast'.
+  - contrast: 0.0
+  # The value there can be exact - but you can also make a range...
+  - contrast: { min: 0.0, max: 0.2 }
+  # ...or a list of options!
+  - contrast: [0.0, 0.5, 0.8],
+  
+  # other examples of effects are...
+  - hue-rotate: 180.0
+  - brighten: { min: -0.1, max: 0.1 }
+  - saturate: [-0.5, 0.0, 0.5]
+  - multiply-hue: 3.0
+
+  # this one is specially formatted.
+  #
+  # here you need to specify a list of mappings from
+  # a luminance (how bright the colour is) to a new
+  # colour.
+  - gradient-map:
+      - luma: 0.00
+        # any valid <colour> (check manual) is available here!
+        # but if a list is provided [via random or shades]
+        # a random colour from the list is picked.
+        colour:
+          rgb: FF0000
+      - luma: 1.00
+        colour:
+          rgb: [0.0, 1.0, 1.0]
+
+  # this one requires a list of hues instead.
+  # note that each hue can *also* be randomized.
+  - quantize-hue:
+      - 0.0
+      - [90.0, 180.0, 270.0]
+      - { min: 0.0, max: 360.0 }
+      - { min: 0.0, max: 360.0 }
+      - { min: 0.0, max: 360.0 }
+
+
+  # then you have dithering, which requires more complex options.
+  # here we'll show off bayer.
+  - bayer:
+      # The matrix size should be in powers of two for optimal performance,
+      # but feel free to play around!
+      matrix-size: 8
+      # Then you just specify a palette. See examples in the manual!
+      palette: "random"
