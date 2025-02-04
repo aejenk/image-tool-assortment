@@ -1,4 +1,4 @@
-use std::{error::Error, fs::File};
+use std::{error::Error, fs::File, path::Path};
 
 use effects::EffectKind;
 use image::{DynamicImage, Frame, codecs::gif::GifEncoder};
@@ -12,6 +12,7 @@ use crate::effects::parse_effects;
 
 mod effects;
 mod source;
+mod parsers;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args();
@@ -20,13 +21,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         panic!("Expected a single arg which represents the filepath of the configuration file.");
     }
 
-    let config = std::fs::read_to_string(args.nth(1).unwrap())?;
+    let config_file = args.nth(1).unwrap();
+
+    println!("[...] - Reading configuration file: {}", config_file);
+
+    let config = std::fs::read_to_string(config_file)?;
+
+    println!("[...] - Parsing file as YAML...");
 
     let yaml: serde_yaml::Value = serde_yaml::from_str(&config)?;
+
+    println!("[...] - Parsing YAML as configuration");
 
     let mut rng = StdRng::from_entropy();
 
     let source = parse_source(&yaml);
+
+    match &source.source {
+        SourceKind::File(path) => println!("[...] - Source is file at path: {path}"),
+        SourceKind::Url(url) => println!("[...] - Source is at URL: {url}"),
+    };
+
 
     let output = yaml
         .get("output").expect("[output] is required.")
@@ -35,8 +50,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let out_path = output.get("path").expect("[output.path] must be specified.")
         .as_str().expect("[output.path] must be a string.");
 
+    println!("[...] - Output path defined as: {out_path}");
+
+    if !Path::new(out_path).is_dir() {
+        std::fs::create_dir(out_path)?;
+    }
+
     let iterations = output.get("n").expect("[n] must be specified.")
         .as_u64().expect("[output.n] must be a positive integer.");
+
+    println!("[ ! ] - Running {iterations} iterations...");
 
     let media = source.perform()?;
 
@@ -54,7 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     bar.tick();
                     image = effect.affect(image);
                 }
-                image.save(format!("{out_path}-{i:<05}.png"))?;
+                image.save(format!("{out_path}/{i:<05}.png"))?;
             },
             MediaType::Gif => {
                 let effects = parse_effects::<Frame>(&mut rng, &yaml);
@@ -69,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     frame
                 }).collect::<Vec<_>>();
 
-                let file_out = File::create(format!("{out_path}-{i:<05}.gif")).unwrap();
+                let file_out = File::create(format!("{out_path}/{i:<05}.gif")).unwrap();
                 let mut encoder = GifEncoder::new(file_out);
                 encoder.set_repeat(image::codecs::gif::Repeat::Infinite).unwrap();
                 encoder.encode_frames(frames.into_iter()).unwrap();

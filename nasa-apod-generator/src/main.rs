@@ -10,6 +10,7 @@ use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng, Rng};
 use dotenv::dotenv;
 use eggbug::{Session, Post, Attachment};
 use chrono;
+use async_std::task;
 
 
 pub mod nasa;
@@ -18,6 +19,9 @@ mod utils;
 use crate::nasa::get_random_apod;
 
 const ITERATIONS: usize = 1;
+
+static mut RUNNABLE: bool = true;
+const SAFEGUARD_SECS: u64 = 60 * 60; // hour
 
 #[tokio::main]
 async fn main() {
@@ -28,15 +32,37 @@ async fn main() {
     // for testing
     // let _ = execute().await;
 
-    scheduler.every(3.hour()).run(|| async {
+    scheduler.every(1.day()).run(|| async {
+        if unsafe { !RUNNABLE } {
+            println!("----- Already executed recently. Skipping iteration...");
+            return;
+        }
         println!("----- Executing on: {:?}", chrono::offset::Local::now());
+
+        let mut tries = 0;
+
         loop {
             if let Err(error) = execute().await {
-                eprintln!("Error encountered: {}", error.to_string());
+                tries = tries + 1;
+                eprintln!("Try: {tries}... Error encountered: {}", error.to_string());
+
+                if tries > 3 {
+                    eprintln!("Maxxed out tries. Skipping iteration...");
+                    return;
+                }
+                
                 eprintln!("Retrying...");
                 continue;
             }
             println!("Completed loop! Returning to scheduler...\n");
+            
+            unsafe { RUNNABLE = false; }
+            
+            task::spawn(async move {
+                task::sleep(Duration::from_secs(SAFEGUARD_SECS)).await;
+                unsafe { RUNNABLE = true; }
+            });
+
             break;
         };
     });
@@ -147,7 +173,6 @@ async fn dispatch_apod_image_to_cohost(
             "nasa".into(),
             "dithering".into(),
             "dither".into(),
-            "ditherchosting".into(),
             // "astronomy".into(),
             "bot".into(),
             format!("apod-date({})", response.date),
