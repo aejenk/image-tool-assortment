@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use image_effects::prelude::IntoGradientLch;
 use palette::{rgb::Rgb, Lch, Srgb};
 use rand::Rng;
@@ -125,6 +127,7 @@ pub enum HueDistribution { Linear, Random }
 pub enum HueStrategy {
     Neighbour { size: f64, n: u64, dist: HueDistribution },
     Contrast { size: f64, n: u64, dist: HueDistribution },
+    Penpal { size: f64, n: u64, dist: HueDistribution, distance: f64 },
     Cycle { n: u64 }
 }
 
@@ -159,6 +162,11 @@ pub enum HueStrategy {
 //      it's essentially the same as "neighbour", except when generating, the base
 //          is 180-S instead of S.
 //
+// "penpal":
+//      an extension on "contrast" -- it works the same, except now you control the distance.
+//      it is effectively equal at distance=180 - but allows to pick any distance.
+//      "contrast" remains due to being a common case, but may be removed for redundancy.
+//
 // "cycle":
 //      hues will be generated linearly over a 360-degree span.
 //      for example, N=1 will add a 180+S, N=2 will add 120+S and 240+S, etc...
@@ -167,7 +175,7 @@ pub fn parse_hue_strategies(mut rng: &mut impl Rng, config: &Mapping) -> Vec<Hue
         .get("hue_strategies").expect("[hue_strategies] is required.")
         .as_sequence().expect("[hue_strategies] must be a list of mappings.");
 
-    hue_strategies.iter().map(|strategy| {
+    hue_strategies.iter().flat_map(|strategy| {
         if !strategy.is_mapping() {
             panic!("[hue_strategies] entries must be mappings.")
         }
@@ -182,33 +190,74 @@ pub fn parse_hue_strategies(mut rng: &mut impl Rng, config: &Mapping) -> Vec<Hue
             _ => panic!("{dist} is not a valid distribution."),
         };
 
-        match strategy_type {
-            "neighbour" => {
-                let size = parse_f64_param(rng, strategy.get("size").expect("[neighbour] strategy must specify a [.size]."));
-                let n = parse_u64_param(rng, strategy.get("count").expect("[neighbour] strategy must specify a [.count]"));
-                let dist = strategy
-                    .get("dist").expect("[neighbour] strategy must specify a [.dist]")
-                    .as_str().expect("[neighbour.dist] must be a string.");
+        let iterations = strategy.get("iterations").map(|param| parse_u64_param(rng, param)).unwrap_or(1);
+        let mut strategies = Vec::new();
 
-                HueStrategy::Neighbour { size, n, dist: get_dist(dist) }
-            },
-            "contrast" => {
-                let size = parse_f64_param(rng, strategy.get("size").expect("[contrast] strategy must specify a [.size]."));
-                let n = parse_u64_param(rng, strategy.get("count").expect("[contrast] strategy must specify a [.count]"));
-                let dist = strategy
-                    .get("dist").expect("[contrast] strategy must specify a [.dist]")
-                    .as_str().expect("[contrast.dist] must be a string.");
+        for i in 0..iterations {
+            strategies.push(match strategy_type {
+                "neighbour" => {
+                    let size = parse_f64_param(rng, strategy.get("size").expect("[neighbour] strategy must specify a [.size]."));
+                    let n = parse_u64_param(rng, strategy.get("count").expect("[neighbour] strategy must specify a [.count]"));
+                    let dist = strategy
+                        .get("dist").expect("[neighbour] strategy must specify a [.dist]")
+                        .as_str().expect("[neighbour.dist] must be a string.");
 
-                HueStrategy::Contrast { size, n, dist: get_dist(dist) }
-            },
-            "cycle" => {
-                let n = parse_u64_param(rng, strategy.get("count").expect("[cycle] strategy must specify a [.count]"));
+                    HueStrategy::Neighbour { size, n, dist: get_dist(dist) }
+                },
+                "contrast" => {
+                    let size = parse_f64_param(rng, strategy.get("size").expect("[contrast] strategy must specify a [.size]."));
+                    let n = parse_u64_param(rng, strategy.get("count").expect("[contrast] strategy must specify a [.count]"));
+                    let dist = strategy
+                        .get("dist").expect("[contrast] strategy must specify a [.dist]")
+                        .as_str().expect("[contrast.dist] must be a string.");
 
-                HueStrategy::Cycle { n }
-            },
-            _ => panic!("{strategy_type} is not a valid hue_strategy."),
+                    HueStrategy::Contrast { size, n, dist: get_dist(dist) }
+                },
+                "penpal" => {
+                    let size = parse_f64_param(rng, strategy.get("size").expect("[penpal] strategy must specify a [.size]."));
+                    let n = parse_u64_param(rng, strategy.get("count").expect("[penpal] strategy must specify a [.count]"));
+                    let dist = strategy
+                        .get("dist").expect("[penpal] strategy must specify a [.dist]")
+                        .as_str().expect("[penpal.dist] must be a string.");
+                    let distance = parse_f64_param(rng, strategy.get("distance").expect("[penpal] strategy must specify a [.distance]"));
+
+                    HueStrategy::Penpal { size, n, dist: get_dist(dist), distance }
+                },
+                "cycle" => {
+                    let n = parse_u64_param(rng, strategy.get("count").expect("[cycle] strategy must specify a [.count]"));
+
+                    HueStrategy::Cycle { n }
+                },
+                _ => panic!("{strategy_type} is not a valid hue_strategy."),
+            });
         }
+
+        strategies
     }).collect()
+}
+
+pub enum ChromaStrategy {
+    Random(Range<f64>)
+}
+
+pub fn parse_chroma_strategy(mut rng: &mut impl Rng, config: &Mapping) -> ChromaStrategy {
+    let chroma_strategy = config
+        .get("chroma_strategy").expect("[chroma_strategy] is required.")
+        .as_mapping().expect("[chroma_strategy] must be a mapping.");
+
+    let strategy_name = chroma_strategy
+        .get("type").expect("[chroma_strategy.type] must be present.")
+        .as_str().expect("[chroma_strategy.type] must be a string.");
+
+    match strategy_name {
+        "random" => {
+            let range_start = chroma_strategy.get("range_start").map(|param| parse_f64_param(rng, param)).unwrap_or(0.0);
+            let range_end = chroma_strategy.get("range_end").map(|param| parse_f64_param(rng, param)).unwrap_or(128.0);
+
+            ChromaStrategy::Random(range_start..range_end)
+        },
+        _ => panic!("{strategy_name} is not a valid chroma_strategy."),
+    }
 }
 
 pub fn parse_inject(rng: &mut impl Rng, config: &Mapping) -> Option<Vec<Rgb>> {

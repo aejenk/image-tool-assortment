@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use image_effects::{prelude::{Effect, filters::{Brighten, HueRotate, Contrast, Saturate, GradientMap, QuantizeHue, MultiplyHue}, IntoGradientLch}, dither::{bayer::Bayer, error::{ErrorPropagator, WithPalette}, ATKINSON, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, BURKES, STUCKI, SIERRA, SIERRA_TWO_ROW, SIERRA_LITE}};
+use image_effects::{dither::{error::{ErrorPropagator, WithPalette}, ordered::Ordered, ordered::OrderedStrategy::*, ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE, SIERRA_TWO_ROW, STUCKI}, prelude::{filters::{Brighten, Contrast, GradientMap, HueRotate, MultiplyHue, QuantizeHue, Saturate}, Effect, IntoGradientLch}};
 use palette::{Srgb, Lch, IntoColor, named};
 use rand::{Rng, seq::SliceRandom};
-use serde_yaml::{Mapping, Sequence};
+use serde_yaml::{Mapping, Sequence, Value};
 
-use crate::parsers::{palette::{parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param};
+use crate::parsers::{palette::{parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param};
 
 #[derive(Debug)]
 pub enum EffectKind {
@@ -17,7 +17,7 @@ pub enum EffectKind {
     QuantizeHue,
     MultiplyHue,
 
-    Bayer,
+    Ordered,
     ErrorPropagator,
 }
 
@@ -25,15 +25,15 @@ pub enum EffectKind {
 impl From<&str> for EffectKind {
     fn from(value: &str) -> Self {
         match value {
-            "hue-rotate" => EffectKind::HueRotate,
-            "contrast" => EffectKind::Contrast,
-            "brighten" => EffectKind::Brighten,
-            "bayer" => EffectKind::Bayer,
-            "saturate" => EffectKind::Saturate,
-            "gradient-map" => EffectKind::GradientMap,
-            "quantize-hue" => EffectKind::QuantizeHue,
-            "multiply-hue" => EffectKind::MultiplyHue,
-            _ => EffectKind::ErrorPropagator,
+            "hue-rotate" => Self::HueRotate,
+            "contrast" => Self::Contrast,
+            "brighten" => Self::Brighten,
+            "saturate" => Self::Saturate,
+            "gradient-map" => Self::GradientMap,
+            "quantize-hue" => Self::QuantizeHue,
+            "multiply-hue" => Self::MultiplyHue,
+            "ordered" => Self::Ordered,
+            _ => Self::ErrorPropagator,
         }
     }
 }
@@ -93,7 +93,7 @@ fn parse_effect<T>(rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>> w
     GradientMap: Effect<T>,
     QuantizeHue: Effect<T>,
     MultiplyHue: Effect<T>,
-    Bayer: Effect<T>,
+    Ordered: Effect<T>,
     ErrorPropagator<'static, 'static, WithPalette>: Effect<T>,
 {
     let kind = parse_effect_kind(effect);
@@ -107,7 +107,8 @@ fn parse_effect<T>(rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>> w
         EffectKind::QuantizeHue => Box::new(parse_quantize_hue(rng, effect)),
         EffectKind::MultiplyHue => Box::new(parse_multiply_hue(rng, effect)),
 
-        EffectKind::Bayer => Box::new(parse_bayer(rng, effect)),
+        EffectKind::Ordered => Box::new(parse_ordered(rng, effect)),
+
         EffectKind::ErrorPropagator => Box::new(parse_error_propagator(rng, effect,
             effect.keys().next().unwrap().as_str().unwrap())),
     }
@@ -121,7 +122,7 @@ pub fn parse_effects<'a, 'b, T>(rng: &mut impl Rng, root_value: &serde_yaml::Val
     GradientMap: Effect<T>,
     QuantizeHue: Effect<T>,
     MultiplyHue: Effect<T>,
-    Bayer: Effect<T>,
+    Ordered: Effect<T>,
     ErrorPropagator<'static, 'static, WithPalette>: Effect<T>,
 {
     let effects = root_value.get("effects").expect("[effects] was not present - is required.")
@@ -242,16 +243,82 @@ fn parse_multiply_hue(rng: &mut impl Rng, effect: &Mapping) -> MultiplyHue {
     MultiplyHue(factor)
 }
 
-fn parse_bayer(rng: &mut impl Rng, effect: &Mapping) -> Bayer {
-    let config = effect.get("bayer").unwrap();
+fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
+    let config = effect.get("ordered").unwrap();
 
-    let matrix_size = config.get("matrix-size").expect("[bayer] requires a [matrix-size] to be set.");
+    let strategy = config
+        .get("strategy").expect("[ordered] requires a [strategy] to be set.")
+        .as_str().expect("[ordered.strategy] must be a string.");
+
     let palette = config.get("palette").expect("[bayer] requires a [palette] to be set.");
-
-    let matrix_size = parse_u64_param(rng, matrix_size);
     let palette = parse_palette(rng, palette);
 
-    Bayer::new(matrix_size as usize, palette)
+    fn parse_matrix_size(rng: &mut impl Rng, value: &Value, strategy: &str) -> u64 {
+        let matrix_size = value.get("matrix-size").expect(format!("[ordered.strategy ({strategy})] requires [ordered.matrix-size]").as_str());
+        parse_u64_param(rng, matrix_size)
+    }
+
+    match strategy {
+        "bayer" => {
+            Ordered::new(palette, Bayer(parse_matrix_size(rng, config, strategy) as u8))
+        },
+        "diamonds" => {
+            Ordered::new(palette, Diamonds(parse_matrix_size(rng, config, strategy) as u8))
+        },
+        "checkered-diamonds" => {
+            Ordered::new(palette, CheckeredDiamonds(parse_matrix_size(rng, config, strategy) as u8))
+        },
+        "stars" => {
+            Ordered::new(palette, Stars)
+        },
+        "new-stars" => {
+            Ordered::new(palette, NewStars)
+        },
+        "grid" => {
+            Ordered::new(palette, Grid)
+        },
+        "trail" => {
+            Ordered::new(palette, Trail)
+        },
+        "criss-cross" => {
+            Ordered::new(palette, Crisscross)
+        },
+        "static" => {
+            Ordered::new(palette, Static)
+        },
+        "wavy" => {
+            Ordered::new(palette, Wavy)
+        },
+        "bootleg-bayer" => {
+            Ordered::new(palette, BootlegBayer)
+        },
+        "diagonals" => {
+            Ordered::new(palette, Diagonals)
+        },
+        "diagonals-big" => {
+            Ordered::new(palette, DiagonalsBig)
+        },
+        "diamond-grid" => {
+            Ordered::new(palette, DiamondGrid)
+        },
+        "speckle-squares" => {
+            Ordered::new(palette, SpeckleSquares)
+        },
+        "scales" => {
+            Ordered::new(palette, Scales)
+        },
+        "trail-scales" => {
+            Ordered::new(palette, TrailScales)
+        },
+        _ => {
+            let strategies = vec![
+                "bayer", "diamonds", "checkered-diamonds", "stars", "new-stars", "grid", "trail",
+                "criss-cross", "static", "wavy", "bootleg-bayer", "diagonals", "diagonals-big",
+                "diamond-grid", "speckle-squares", "scales", "trail-scales",
+            ];
+            panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
+        }
+    }
 }
 
 fn parse_error_propagator<'a, 'b>(rng: &mut impl Rng, effect: &Mapping, algorithm_name: &str) -> ErrorPropagator<'a, 'b, WithPalette> {
@@ -368,6 +435,8 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
 
     let hue_strategies = parse_hue_strategies(rng, config);
 
+    let chroma_strategy = parse_chroma_strategy(rng, config);
+
     let misc_flags = config.get("misc_flags")
         .map(|param| param
             .as_sequence().expect("[palette.config.misc_flags] must be a list")
@@ -377,28 +446,21 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
     let mut flag_grayscale = false;
     let mut flag_lum_safeguard = false;
     let mut flag_extremes = false;
+    let mut flag_single_lum = false;
 
     if let Some(flags) = misc_flags {
         if flags.contains(&"grayscale") { flag_grayscale = true }
         if flags.contains(&"lum_safeguard") { flag_lum_safeguard = true }
         if flags.contains(&"extremes") { flag_extremes = true }
+        if flags.contains(&"single_lum") { flag_single_lum = true }
     };
 
-    let mut palette: Vec<Lch> = if let Some(colours) = inject {
-        colours.into_iter().map(|colour| colour.into_color()).collect()
-    } else {
-        Vec::new()
-    };
-
-    if flag_lum_safeguard {
-        palette.push(gen_with_random_lightness(rng, 80.0, 100.0));
-        palette.push(gen_with_random_lightness(rng, 20.0,  80.0));
-        palette.push(gen_with_random_lightness(rng,  0.0,  20.0));
-    }
+    let mut palette: Vec<Lch> = Vec::new();
 
     let seed_hue = rng.gen_range(0.0..360.0);
     let mut hues = vec![seed_hue];
 
+    // fn for common hue calculation
     let mut generate_hue_neighbourhood = |hue: f64, size: f64, n: u64, dist: &HueDistribution| {
         let mut neighbourhood = Vec::new();
 
@@ -420,6 +482,7 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
         neighbourhood
     };
 
+    // hue strategy application
     for strategy in hue_strategies.iter() {
         match strategy {
             HueStrategy::Neighbour { size, n, dist } => {
@@ -428,6 +491,9 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
             HueStrategy::Contrast { size, n, dist } => {
                 hues = vec![hues, generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist)].concat()
             },
+            HueStrategy::Penpal { size, n, dist, distance } => {
+                hues = vec![hues, generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist)].concat()
+            }
             HueStrategy::Cycle { n } => {
                 for i in 1..=*n {
                     hues.push(seed_hue + i as f64 * (360.0/ (*n as f64 +1.0)));
@@ -436,30 +502,36 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
         }
     }
 
+    // lum strategy application
     hues.into_iter().for_each(|hue| {
         let hue = hue as f32;
-        let mut get_chroma = || rng.gen_range(0.0..128.0);
 
         match &lum_strategy {
             LumStrategy::Exact(lums) => {
-                for l in lums.iter() {
+                for mut l in lums.iter() {
+                    if flag_single_lum { l = lums.choose(rng).unwrap() };
                     palette.push(Lch::new(*l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum { break };
                 }
             },
             LumStrategy::Random { unified } => {
-                for i in 0..lum_amnt {
+                for _ in 0..lum_amnt {
                     palette.push(Lch::new(rng.gen_range(0.0..100.0), rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum { break };
                 }
             },
             LumStrategy::Distributed => {
-                for i in 0..lum_amnt {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum { i = rng.gen_range(0..lum_amnt) };
                     let span_size = max_lum - min_lum;
                     let l = min_lum + (i as f64 / (lum_amnt as f64-1.0)) * span_size;
                     palette.push(Lch::new(l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum { break };
                 }
             },
             LumStrategy::DistributedArea { overlap } => {
-                for i in 0..lum_amnt {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum { i = rng.gen_range(0..lum_amnt) };
                     let span_size = max_lum - min_lum;
                     let step_size = span_size / lum_amnt as f64;
 
@@ -473,24 +545,45 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
 
                     let l = rng.gen_range(area_start..area_end) as f32;
                     palette.push(Lch::new(l, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum { break };
                 }
             },
             LumStrategy::DistributedNudge { nudge_size } => {
-                for i in 0..lum_amnt {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum { i = rng.gen_range(0..lum_amnt) };
                     let span_size = max_lum - min_lum;
                     let mut l = min_lum + (i as f64 / (lum_amnt as f64-1.0)) * span_size;
 
                     l = (l + rng.gen_range((-1.0 * nudge_size)..*nudge_size)).max(100.0).min(0.0);
 
                     palette.push(Lch::new(l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum { break };
                 }
             }
         }
     });
 
+    match chroma_strategy {
+        ChromaStrategy::Random(range) => {
+            palette.iter_mut().for_each(|col| col.chroma = rng.gen_range(range.clone()) as f32);
+        }
+    }
+
+    // injection
+    if flag_lum_safeguard {
+        palette.push(gen_with_random_lightness(rng, 80.0, 100.0));
+        palette.push(gen_with_random_lightness(rng, 20.0,  80.0));
+        palette.push(gen_with_random_lightness(rng,  0.0,  20.0));
+    }
+
     if flag_extremes {
         palette.push(Lch::new(0.0, 0.0, 0.0));
         palette.push(Lch::new(100.0, 128.0, 0.0));
+    }
+
+    if let Some(colours) = inject {
+        let lch_colours: Vec<Lch> = colours.into_iter().map(|colour| colour.into_color()).collect();
+        palette = vec![palette, lch_colours].concat();
     }
 
     palette.into_iter().map(|color| color.into_color()).collect()
