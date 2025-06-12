@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use image_effects::{dither::{error::{ErrorPropagator, WithPalette}, ordered::Ordered, ordered::OrderedStrategy::*, ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE, SIERRA_TWO_ROW, STUCKI}, prelude::{filters::{Brighten, Contrast, GradientMap, HueRotate, MultiplyHue, QuantizeHue, Saturate}, Effect, IntoGradientLch}};
+use image_effects::{dither::{error::{ErrorPropagator, WithPalette}, ordered::{DiagonalDirection, Increase, Ordered, OrderedStrategy::*, Orientation}, ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE, SIERRA_TWO_ROW, STUCKI}, prelude::{filters::{Brighten, Contrast, GradientMap, HueRotate, MultiplyHue, QuantizeHue, Saturate}, Effect, IntoGradientLch}};
 use palette::{Srgb, Lch, IntoColor, named};
 use rand::{Rng, seq::SliceRandom};
 use serde_yaml::{Mapping, Sequence, Value};
@@ -258,6 +258,104 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
         parse_u64_param(rng, matrix_size)
     }
 
+    fn parse_orientation(rng: &mut impl Rng, value: &Value, strategy: &str) -> Orientation {
+        let orientation = value.get("orientation").expect(format!("[ordered.strategy ({strategy})] requires [ordered.orientation]").as_str());
+
+        match orientation {
+            Value::Mapping(mapping) => {
+                let horizontal_ratio = mapping.get("horizontal").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.horizontal] must be a float.").as_str()));
+                let vertical_ratio = mapping.get("vertical").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.vertical] must be a float.").as_str()));
+
+                match (horizontal_ratio, vertical_ratio) {
+                    (Some(hr), Some(vr)) => {
+                        let target = rng.gen_range(0.0..hr+vr);
+                        if target < hr {
+                            Orientation::Horizontal
+                        } else {
+                            Orientation::Vertical
+                        }
+                    }
+                    (None, _) | (_, None) => panic!("[ordered.orientation] must have a [horizontal] and [vertical] float.")
+                }
+            },
+            Value::String(orientation) => {
+                match orientation.as_str() {
+                    "horizontal" => Orientation::Horizontal,
+                    "vertical" => Orientation::Vertical,
+                    _ => panic!("[ordered.orientation] must be 'horizontal', 'vertical', or a mapping of ratios.")
+                }
+            },
+            _ => panic!("[ordered.orientation] must be a mapping of ratios, or one of 'vertical' / 'horizontal'")
+        }
+    }
+
+    fn parse_diagonaldirection(rng: &mut impl Rng, value: &Value, strategy: &str) -> DiagonalDirection {
+        let diagonaldirection = value.get("diagonal-direction").expect(format!("[ordered.strategy ({strategy})] requires [ordered.diagonal-direction]").as_str());
+
+        match diagonaldirection {
+            Value::Mapping(mapping) => {
+                let dr_ratio = mapping.get("down-right").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.horizontal] must be a float.").as_str()));
+                let ur_ratio = mapping.get("up-right").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.vertical] must be a float.").as_str()));
+
+                match (dr_ratio, ur_ratio) {
+                    (Some(dr), Some(ur)) => {
+                        let target = rng.gen_range(0.0..dr+ur);
+                        if target < dr {
+                            DiagonalDirection::DownRight
+                        } else {
+                            DiagonalDirection::UpRight
+                        }
+                    }
+                    (None, _) | (_, None) => panic!("[ordered.orientation] must have a [down-right] and [up-right] float.")
+                }
+            },
+            Value::String(orientation) => {
+                match orientation.as_str() {
+                    "down-right" => DiagonalDirection::DownRight,
+                    "up-right" => DiagonalDirection::UpRight,
+                    _ => panic!("[ordered.orientation] must be 'down-right', 'up-right', or a mapping of ratios.")
+                }
+            },
+            _ => panic!("[ordered.orientation] must be a mapping of ratios, or one of 'down-right' / 'up-right'")
+        }
+    }
+
+    fn parse_increase(rng: &mut impl Rng, value: &Value, strategy: &str) -> Increase {
+        let increase_strategy = value.get("increase-strategy").expect(format!("[ordered.strategy ({strategy})] requires [ordered.increase-strategy]").as_str())
+            .as_mapping().expect("[ordered.increase-strategy] must be a mapping.");
+
+        let strategy_type = increase_strategy.get("type").expect("[ordered.strategy.increase-strategy] must have a [type]");
+
+        let factor = parse_u64_param(rng, increase_strategy.get("factor").expect("[ordered.strategy.increase-strategy] must have a [factor]"));
+
+        match strategy_type {
+            Value::Mapping(mapping) => {
+                let linear = mapping.get("linear").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.horizontal] must be a float.").as_str()));
+                let exponential = mapping.get("exponential").map(|ratio| ratio.as_f64().expect(format!("[ordered.orientation.vertical] must be a float.").as_str()));
+
+                match (linear, exponential) {
+                    (Some(l), Some(e)) => {
+                        let target = rng.gen_range(0.0..l+e);
+                        if target < l {
+                            Increase::Linear(factor as u8)
+                        } else {
+                            Increase::Exponential(factor as u8)
+                        }
+                    }
+                    (None, _) | (_, None) => panic!("[ordered.increase-strategy] must have a [down-right] and [up-right] float.")
+                }
+            },
+            Value::String(strategy_type) => {
+                match strategy_type.as_str() {
+                    "linear" => Increase::Linear(factor as u8),
+                    "exponential" => Increase::Exponential(factor as u8),
+                    _ => panic!("[ordered.increase-strategy.type] must be 'linear' or 'exponential"),
+                }
+            },
+            _ => panic!("[ordered.orientation] must be a mapping of ratios, or one of 'down-right' / 'up-right'")
+        }
+    }
+
     match strategy {
         "bayer" => {
             Ordered::new(palette, Bayer(parse_matrix_size(rng, config, strategy) as u8))
@@ -287,7 +385,7 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
             Ordered::new(palette, Static)
         },
         "wavy" => {
-            Ordered::new(palette, Wavy)
+            Ordered::new(palette, Wavy(parse_orientation(rng, config, strategy)))
         },
         "bootleg-bayer" => {
             Ordered::new(palette, BootlegBayer)
@@ -310,11 +408,18 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
         "trail-scales" => {
             Ordered::new(palette, TrailScales)
         },
+        "diagonals-n" => {
+            Ordered::new(palette, DiagonalsN { 
+                n: parse_matrix_size(rng, config, strategy) as u8,
+                direction: parse_diagonaldirection(rng, config, strategy),
+                increase: parse_increase(rng, config, strategy), 
+            })
+        }
         _ => {
             let strategies = vec![
                 "bayer", "diamonds", "checkered-diamonds", "stars", "new-stars", "grid", "trail",
                 "criss-cross", "static", "wavy", "bootleg-bayer", "diagonals", "diagonals-big",
-                "diamond-grid", "speckle-squares", "scales", "trail-scales",
+                "diamond-grid", "speckle-squares", "scales", "trail-scales", "diagonals-n"
             ];
             panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }
