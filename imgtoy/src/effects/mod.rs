@@ -250,6 +250,10 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
         .get("strategy").expect("[ordered] requires a [strategy] to be set.")
         .as_str().expect("[ordered.strategy] must be a string.");
 
+    let invert_chance = config
+        .get("invert").or(Some(&Value::from(0.0))).unwrap()
+        .as_f64().expect("[ordered.invert] must be a float number.");
+
     let palette = config.get("palette").expect("[bayer] requires a [palette] to be set.");
     let palette = parse_palette(rng, palette);
 
@@ -356,73 +360,104 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
         }
     }
 
-    match strategy {
+    let strategy = match strategy {
         "bayer" => {
-            Ordered::new(palette, Bayer(parse_matrix_size(rng, config, strategy) as u8))
+            Bayer(parse_matrix_size(rng, config, strategy) as u8)
         },
         "diamonds" => {
-            Ordered::new(palette, Diamonds(parse_matrix_size(rng, config, strategy) as u8))
+            Diamonds(parse_matrix_size(rng, config, strategy) as u8)
         },
         "checkered-diamonds" => {
-            Ordered::new(palette, CheckeredDiamonds(parse_matrix_size(rng, config, strategy) as u8))
+            CheckeredDiamonds(parse_matrix_size(rng, config, strategy) as u8)
         },
         "stars" => {
-            Ordered::new(palette, Stars)
+            Stars
         },
         "new-stars" => {
-            Ordered::new(palette, NewStars)
+            NewStars
         },
         "grid" => {
-            Ordered::new(palette, Grid)
+            Grid
         },
         "trail" => {
-            Ordered::new(palette, Trail)
+            Trail
         },
         "criss-cross" => {
-            Ordered::new(palette, Crisscross)
+            Crisscross
         },
         "static" => {
-            Ordered::new(palette, Static)
+            Static
         },
         "wavy" => {
-            Ordered::new(palette, Wavy(parse_orientation(rng, config, strategy)))
+            Wavy(parse_orientation(rng, config, strategy))
         },
         "bootleg-bayer" => {
-            Ordered::new(palette, BootlegBayer)
+            BootlegBayer
         },
         "diagonals" => {
-            Ordered::new(palette, Diagonals)
+            Diagonals
         },
         "diagonals-big" => {
-            Ordered::new(palette, DiagonalsBig)
+            DiagonalsBig
         },
         "diamond-grid" => {
-            Ordered::new(palette, DiamondGrid)
+            DiamondGrid
         },
         "speckle-squares" => {
-            Ordered::new(palette, SpeckleSquares)
+            SpeckleSquares
         },
         "scales" => {
-            Ordered::new(palette, Scales)
+            Scales
         },
         "trail-scales" => {
-            Ordered::new(palette, TrailScales)
+            TrailScales
         },
         "diagonals-n" => {
-            Ordered::new(palette, DiagonalsN { 
+            DiagonalsN {
                 n: parse_matrix_size(rng, config, strategy) as u8,
                 direction: parse_diagonaldirection(rng, config, strategy),
                 increase: parse_increase(rng, config, strategy), 
-            })
-        }
+            }
+        },
+        "diagonal-tiles" => {
+            DiagonalTiles(parse_matrix_size(rng, config, strategy) as u8)
+        },
+        "bouncing-bowtie" => {
+            BouncingBowtie(parse_matrix_size(rng, config, strategy) as u8)
+        },
+        "scanline" => {
+            ScanLine(
+                parse_matrix_size(rng, config, strategy) as u8,
+                parse_orientation(rng, config, strategy)
+            )
+        },
+        "starburst" => {
+            Starburst(parse_matrix_size(rng, config, strategy) as u8)
+        },
+        "shiny-bowtie" => {
+            ShinyBowtie(parse_matrix_size(rng, config, strategy) as u8)
+        },
+        "marble-tile" => {
+            MarbleTile(parse_matrix_size(rng, config, strategy) as u8)
+        },
         _ => {
             let strategies = vec![
                 "bayer", "diamonds", "checkered-diamonds", "stars", "new-stars", "grid", "trail",
                 "criss-cross", "static", "wavy", "bootleg-bayer", "diagonals", "diagonals-big",
-                "diamond-grid", "speckle-squares", "scales", "trail-scales", "diagonals-n"
+                "diamond-grid", "speckle-squares", "scales", "trail-scales", "diagonals-n", 
+                "diagonal-tiles", "bouncing-bowtie", "scanline", "starburst", "shiny-bowtie",
+                "marble-tile"
             ];
             panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }
+    };
+
+    let invert_seed = rng.gen_range(0.0..1.0);
+
+    if invert_seed <= invert_chance {
+        Ordered::new(palette, Invert(Box::new(strategy)))
+    } else {
+        Ordered::new(palette, strategy)
     }
 }
 

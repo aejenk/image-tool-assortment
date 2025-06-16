@@ -1040,8 +1040,8 @@ dependencies = [
 
 [[package]]
 name = "image-effects"
-version = "0.1.1"
-source = "git+https://github.com/aejenk/image-effects?branch=databend#0826f6aa2c1fdff073f43a45c7cbef2590c2fb94"
+version = "0.2.0"
+source = "git+https://github.com/aejenk/image-effects?branch=databend#1cc220e6e22da12d491842e5c483bedaa50c05ba"
 dependencies = [
  "image",
  "ndarray",
@@ -1056,7 +1056,7 @@ name = "imgtoy"
 version = "0.1.0"
 dependencies = [
  "image",
- "image-effects 0.1.1",
+ "image-effects 0.2.0",
  "indicatif",
  "ndarray",
  "palette",
