@@ -1,6 +1,8 @@
 use rand::{seq::SliceRandom, Rng};
 
 pub mod palette;
+pub mod ordered;
+pub mod util;
 
 // generic parsers
 pub fn parse_u64_param(rng: &mut impl Rng, param: &serde_yaml::Value) -> u64 {
