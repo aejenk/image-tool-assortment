@@ -5,7 +5,7 @@ use palette::{Srgb, Lch, IntoColor, named};
 use rand::{Rng, seq::SliceRandom};
 use serde_yaml::{Mapping, Sequence, Value};
 
-use crate::parsers::{ordered::{parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror, parse_orientation}, palette::{parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param, util::{parse_property_as_f64_param, parse_property_as_str_param}};
+use crate::parsers::{ordered::{parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror, parse_orientation}, palette::{parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param, util::{parse_property_as_f64_param, parse_property_as_str_param, parse_property_as_u64_param}};
 
 #[derive(Debug)]
 pub enum EffectKind {
@@ -335,13 +335,24 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
         "marble-tile" => {
             MarbleTile(parse_matrix_size(rng, config, strategy) as u8)
         },
+        "curve-path" => {
+            CurvePath { 
+                n: parse_matrix_size(rng, config, strategy) as u8,
+                amplitude: parse_property_as_f64_param(rng, config, "amplitude")
+                    .unwrap_or(1.0),
+                promotion: parse_property_as_f64_param(rng, config, "promotion")
+                    .unwrap_or(0.0), 
+                halt_threshold: parse_property_as_u64_param(rng, config, "halt-threshold")
+                    .unwrap_or(100) as usize,
+            }
+        },
         _ => {
             let strategies = vec![
                 "bayer", "diamonds", "checkered-diamonds", "stars", "new-stars", "grid", "trail",
                 "criss-cross", "static", "wavy", "bootleg-bayer", "diagonals", "diagonals-big",
                 "diamond-grid", "speckle-squares", "scales", "trail-scales", "diagonals-n", 
                 "diagonal-tiles", "bouncing-bowtie", "scanline", "starburst", "shiny-bowtie",
-                "marble-tile"
+                "marble-tile", "curve-path"
             ];
             panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }

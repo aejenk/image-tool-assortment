@@ -1,8 +1,8 @@
-use image_effects::dither::ordered::{DiagonalDirection, Increase, MirrorLine, Orientation};
+use image_effects::dither::ordered::{DiagonalDirection, Flip, Increase, MirrorLine, Orientation};
 use rand::{seq::SliceRandom, Rng};
 use serde_yaml::Value;
 
-use crate::parsers::parse_u64_param;
+use crate::parsers::{parse_f64_param, parse_u64_param, util::parse_property_as_f64_param};
 
 /// The option passed should be a *mapping* that represents a mirror option.
 /// Such an option has multiple properties:
@@ -34,6 +34,9 @@ pub fn parse_mirror_direction_set(rng: &mut impl Rng, value: &Value) -> Vec<Vec<
         .get("directions").expect("[mirror.directions] must specify at least one direction.")
         .as_sequence().expect("[mirror.directions] must be a list.");
 
+    let flip_chance = parse_property_as_f64_param(rng, value, "flip").unwrap_or(0.0);
+    let flip = Flip(rng.gen_range(0.0..1.0) < flip_chance);
+
     let directions = directions.iter().map(|direction_set| {
         let direction_set = direction_set.as_sequence().expect("[mirror.directions[$]] should be a sequence of strings.");
         direction_set.iter().map(|entry| {
@@ -48,10 +51,10 @@ pub fn parse_mirror_direction_set(rng: &mut impl Rng, value: &Value) -> Vec<Vec<
 
         for direction in direction_set {
             parsed_set.push(match direction {
-                "downright" => MirrorLine::Downright,
-                "upright" => MirrorLine::Downright,
-                "horizontal" => MirrorLine::Downright,
-                "vertical" => MirrorLine::Downright,
+                "downright" => MirrorLine::Downright(flip),
+                "upright" => MirrorLine::Upright(flip),
+                "horizontal" => MirrorLine::Downright(flip),
+                "vertical" => MirrorLine::Downright(flip),
                 _ => panic!("[mirror.directions[$].direction] found invalid direction [{direction}]"),
             });
         }
@@ -164,5 +167,4 @@ pub fn parse_diagonaldirection(rng: &mut impl Rng, value: &Value, strategy: &str
         _ => panic!("[ordered.orientation] must be a mapping of ratios, or one of 'down-right' / 'up-right'")
     }
 }
-
 // end
