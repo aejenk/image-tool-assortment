@@ -1,4 +1,4 @@
-use std::{error::Error, fs::File, path::Path};
+use std::{error::Error, fs::File, io::Write, path::Path};
 
 use effects::EffectKind;
 use image::{DynamicImage, Frame, codecs::gif::GifEncoder};
@@ -8,11 +8,12 @@ use serde::Deserialize;
 use source::{SourceKind, MediaType, Source};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::effects::parse_effects;
+use crate::{effects::parse_effects, logging::{AppLog, RunLog}};
 
 mod effects;
 mod source;
 mod parsers;
+mod logging;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args();
@@ -63,15 +64,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let media = source.perform()?;
 
+    // Logging initialising
+    let mut log = AppLog::init();
+    // TODO: Add initial setup.
+
     let bar = ProgressBar::new(iterations);
     bar.set_style(ProgressStyle::with_template("[{eta:>8} remaining...] {pos:>4}/{len:4} {bar:40.cyan/blue} {msg}")
         .unwrap());
 
     for i in 0..iterations {
         bar.inc(1);
+        let mut run = RunLog::init(i as usize);
+
         match source.media_type {
             MediaType::Image => {
-                let effects = parse_effects::<DynamicImage>(&mut rng, &yaml);
+                let effects = parse_effects::<DynamicImage>(&mut run, &mut rng, &yaml);
                 let mut image = (&media).clone().into_image().unwrap();
                 for effect in &effects {
                     bar.tick();
@@ -80,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 image.save(format!("{out_path}/{i:<05}.png"))?;
             },
             MediaType::Gif => {
-                let effects = parse_effects::<Frame>(&mut rng, &yaml);
+                let effects = parse_effects::<Frame>(&mut run, &mut rng, &yaml);
                 let frames = (&media).clone().into_gif().unwrap();
                 let frames_amnt = frames.len();
                 let frames = frames.into_iter().enumerate().map(|(i, mut frame)| {
@@ -98,6 +105,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 encoder.encode_frames(frames.into_iter()).unwrap();
             }
         }
+
+        log.add_run(run);
     }
 
     let dur = bar.duration();
@@ -105,6 +114,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let m = dur.as_secs() / (60) % 60;
     let s = dur.as_secs() % 60;
     println!("done in {h:0>2}:{m:0>2}:{s:0>2}!");
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(format!("{out_path}/_log.txt"))?;
+
+    file.write_all(format!("{log}").as_bytes())?;
 
     Ok(())
 }

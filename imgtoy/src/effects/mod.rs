@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Display, sync::Mutex};
 
-use image_effects::{dither::{error::{ErrorPropagator, WithPalette}, ordered::{DiagonalDirection, Increase, MirrorLine, Ordered, OrderedStrategy::*, Orientation}, ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE, SIERRA_TWO_ROW, STUCKI}, prelude::{filters::{Brighten, Contrast, GradientMap, HueRotate, MultiplyHue, QuantizeHue, Saturate}, Effect, IntoGradientLch}};
+use image_effects::{dither::{error::{ErrorPropagator, WithPalette}, ordered::{algorithms::Wrapping, DiagonalDirection, Increase, MirrorLine, Ordered, OrderedStrategy::*, Orientation}, ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE, SIERRA_TWO_ROW, STUCKI}, prelude::{filters::{Brighten, Contrast, GradientMap, HueRotate, MultiplyHue, QuantizeHue, Saturate}, Effect, IntoGradientLch}};
 use palette::{Srgb, Lch, IntoColor, named};
 use rand::{Rng, seq::SliceRandom};
 use serde_yaml::{Mapping, Sequence, Value};
 
-use crate::parsers::{ordered::{parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror, parse_orientation}, palette::{parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param, util::{parse_property_as_f64_param, parse_property_as_str_param, parse_property_as_u64_param}};
+use crate::{logging::RunLog, parsers::{ordered::{parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror, parse_orientation, parse_wrapping_set}, palette::{parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject, parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy}, parse_f64_param, parse_u64_param, util::{parse_property_as_f64_param, parse_property_as_f64_tuple_param, parse_property_as_str_param, parse_property_as_u64_param}}};
 
 #[derive(Debug)]
 pub enum EffectKind {
@@ -20,7 +20,6 @@ pub enum EffectKind {
     Ordered,
     ErrorPropagator,
 }
-
 
 impl From<&str> for EffectKind {
     fn from(value: &str) -> Self {
@@ -85,7 +84,7 @@ fn parse_effect_kind(effect: &Mapping) -> EffectKind {
     effect.into()
 }
 
-fn parse_effect<T>(rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>> where
+fn parse_effect<T>(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>> where
     HueRotate: Effect<T>,
     Contrast: Effect<T>,
     Brighten: Effect<T>,
@@ -99,22 +98,54 @@ fn parse_effect<T>(rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>> w
     let kind = parse_effect_kind(effect);
 
     match kind {
-        EffectKind::HueRotate => Box::new(parse_hue_rotate(rng, effect)),
-        EffectKind::Contrast => Box::new(parse_contrast(rng, effect)),
-        EffectKind::Brighten => Box::new(parse_brighten(rng, effect)),
-        EffectKind::Saturate => Box::new(parse_saturate(rng, effect)),
-        EffectKind::GradientMap => Box::new(parse_gradient_map(rng, effect)),
-        EffectKind::QuantizeHue => Box::new(parse_quantize_hue(rng, effect)),
-        EffectKind::MultiplyHue => Box::new(parse_multiply_hue(rng, effect)),
+        EffectKind::HueRotate => {
+            let fx = parse_hue_rotate(rng, effect);
+            log.apply_effect("hue-rotate", vec![("shift", format!("{}", fx.0))]);
+            Box::new(fx)
+        },
+        EffectKind::Contrast => {
+            let fx = parse_contrast(rng, effect);
+            log.apply_effect("contrast", vec![("factor", format!("{}", fx.0))]);
+            Box::new(fx)
+        },
+        EffectKind::Brighten => {
+            let fx = parse_brighten(rng, effect);
+            log.apply_effect("brighten", vec![("factor", format!("{}", fx.0))]);
+            Box::new(fx)
+            
+        },
+        EffectKind::Saturate => {
+            let fx = parse_saturate(rng, effect);
+            log.apply_effect("saturate", vec![("factor", format!("{}", fx.0))]);
+            Box::new(fx)
+        },
+        EffectKind::MultiplyHue => {
+            let fx = parse_multiply_hue(log, rng, effect);
+            Box::new(fx)
+        },
+        EffectKind::GradientMap => {
+            let fx = parse_gradient_map(log, rng, effect);
+            Box::new(fx)
+        },
+        EffectKind::QuantizeHue => {
+            let fx = parse_quantize_hue(log, rng, effect);
+            Box::new(fx)
+        },
+        EffectKind::Ordered => {
+            let fx = parse_ordered(log, rng, effect);
+            Box::new(fx)
+        },
 
-        EffectKind::Ordered => Box::new(parse_ordered(rng, effect)),
-
-        EffectKind::ErrorPropagator => Box::new(parse_error_propagator(rng, effect,
-            effect.keys().next().unwrap().as_str().unwrap())),
+        EffectKind::ErrorPropagator => {
+            let fx = parse_error_propagator(rng, effect,effect.keys().next().unwrap().as_str().unwrap());
+            Box::new(fx)
+        }
     }
 }
 
-pub fn parse_effects<'a, 'b, T>(rng: &mut impl Rng, root_value: &serde_yaml::Value) -> Vec<Box<dyn Effect<T>>> where
+type Log<'a> = &'a mut RunLog;
+
+pub fn parse_effects<'a, 'b, T>(log: Log, rng: &mut impl Rng, root_value: &serde_yaml::Value) -> Vec<Box<dyn Effect<T>>> where
     HueRotate: Effect<T>,
     Contrast: Effect<T>,
     Brighten: Effect<T>,
@@ -136,7 +167,7 @@ pub fn parse_effects<'a, 'b, T>(rng: &mut impl Rng, root_value: &serde_yaml::Val
             if keys != 1 {
                 panic!("only one key [the effect name] is accepted by effect - found {}.", keys);
             }
-            parse_effect::<T>(rng, effect)
+            parse_effect::<T>(log, rng, effect)
         })
         .collect::<Vec<_>>()
 }
@@ -171,7 +202,7 @@ fn parse_saturate(rng: &mut impl Rng, effect: &Mapping) -> Saturate {
     Saturate(factor)
 }
 
-fn parse_gradient_map(rng: &mut impl Rng, effect: &Mapping) -> GradientMap {
+fn parse_gradient_map(log: Log, rng: &mut impl Rng, effect: &Mapping) -> GradientMap {
     let param = effect.get("gradient-map").unwrap();
 
     if let Some(mapping) = param.as_mapping() {
@@ -196,6 +227,11 @@ fn parse_gradient_map(rng: &mut impl Rng, effect: &Mapping) -> GradientMap {
         let max_brightness = mapping
             .get("max-brightness")
             .map_or(100.0, |param| parse_f64_param(rng, param));
+
+        log.apply_effect("gradient-map", vec![("noise", format!("{}", noise))]);
+        log.apply_effect("gradient-map", vec![("noise-chance", format!("{}", noise_chance))]);
+        log.apply_effect("gradient-map", vec![("min-brightness", format!("{}", min_brightness))]);
+        log.apply_effect("gradient-map", vec![("max-brightness", format!("{}", max_brightness))]);
 
 
         let generated_map = generate_gradient_map(
@@ -226,24 +262,31 @@ fn parse_gradient_map(rng: &mut impl Rng, effect: &Mapping) -> GradientMap {
     GradientMap::with_map(map)
 }
 
-fn parse_quantize_hue(rng: &mut impl Rng, effect: &Mapping) -> QuantizeHue {
+fn parse_quantize_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> QuantizeHue {
     let param = effect.get("quantize-hue").unwrap();
 
     let hues = param.as_sequence().expect("[quantize-hue] must be a list of hues/hue options.");
 
     let hues = hues.iter().map(|hue| parse_f64_param(rng, hue) as f32).collect::<Vec<_>>();
 
+    let hues_str = hues.iter().map(|h| format!("{h:.3}")).collect::<Vec<String>>();
+
+    log.apply_effect("quantize-hue", vec![("hues", format!("{:?}", hues_str))]);
+
     QuantizeHue::with_hues(hues)
 }
 
-fn parse_multiply_hue(rng: &mut impl Rng, effect: &Mapping) -> MultiplyHue {
+fn parse_multiply_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> MultiplyHue {
     let param = effect.get("multiply-hue").unwrap();
 
     let factor = parse_f64_param(rng, param) as f32;
+
+    log.apply_effect("multiply-hue", vec![("factor", format!("{}", factor))]);
+
     MultiplyHue(factor)
 }
 
-fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
+fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
     let config = effect.get("ordered").unwrap();
 
     let strategy = &parse_property_as_str_param(rng, config, "strategy")
@@ -254,97 +297,261 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
 
     let palette = config.get("palette").expect("[bayer] requires a [palette] to be set.");
     let palette = parse_palette(rng, palette);
+
+    let mirror_chance = if let Some((mirror_chance, mirror_sets)) = config.get("mirror").map(|mirror| parse_mirror(rng, mirror)) {
+       Some((rng.gen_range(0.0..1.0), mirror_sets))
+    } else { None };
+
+    let invert_chance = rng.gen_range(0.0..1.0);
     
-    let mut strategy = match strategy.as_str() {
+    let (mut strategy, (param, mut parameters)) = match strategy.as_str() {
         "bayer" => {
-            Bayer(parse_matrix_size(rng, config, strategy) as u8)
+            let size = parse_matrix_size(rng, config, strategy) as usize;
+
+            (Bayer(size), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{}", size)),
+                ("invert", format!("{}", invert_chance))
+            ]))
         },
         "diamonds" => {
-            Diamonds(parse_matrix_size(rng, config, strategy) as u8)
+            let size = parse_matrix_size(rng, config, strategy) as usize;
+            (Diamonds(size), (("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{}", size))
+            ])))
         },
         "checkered-diamonds" => {
-            CheckeredDiamonds(parse_matrix_size(rng, config, strategy) as u8)
+            let size = parse_matrix_size(rng, config, strategy) as usize;
+            (CheckeredDiamonds(size), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{}", size))
+            ]))
         },
         "stars" => {
-            Stars
+            (Stars, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "new-stars" => {
-            NewStars
+            (NewStars, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "grid" => {
-            Grid
+            (Grid, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "trail" => {
-            Trail
+            (Trail, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "criss-cross" => {
-            Crisscross
+            (Crisscross, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "static" => {
-            Static
+            (Static, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
-        "wavy" => {
-            Wavy(parse_orientation(rng, config, strategy))
+        "wavy" => {            
+            let orientation = parse_orientation(rng, config, strategy);
+            let o_str = match &orientation {
+                Orientation::Horizontal => "horizontal",
+                Orientation::Vertical => "vertical",
+            };
+            (Wavy(orientation), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("orientation", format!("{}", o_str))
+            ]))
         },
         "bootleg-bayer" => {
-            BootlegBayer
+            (BootlegBayer, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "diagonals" => {
-            Diagonals
+            (Diagonals, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "diagonals-big" => {
-            DiagonalsBig
+            (DiagonalsBig, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "diamond-grid" => {
-            DiamondGrid
+            (DiamondGrid, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "speckle-squares" => {
-            SpeckleSquares
+            (SpeckleSquares, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "scales" => {
-            Scales
+            (Scales, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "trail-scales" => {
-            TrailScales
+            (TrailScales, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+            ]))
         },
         "diagonals-n" => {
-            DiagonalsN {
-                n: parse_matrix_size(rng, config, strategy) as u8,
-                direction: parse_diagonaldirection(rng, config, strategy),
-                increase: parse_increase_strategy(rng, config, strategy), 
-            }
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let direction = parse_diagonaldirection(rng, config, strategy);
+            let increase = parse_increase_strategy(rng, config, strategy);
+
+            (DiagonalsN {n, direction: direction.clone(), increase: increase.clone()}, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("direction", match direction {
+                    DiagonalDirection::DownRight => "down-right".to_string(),
+                    DiagonalDirection::UpRight => "up-right".to_string(),
+                }),
+                ("increase", match increase {
+                    Increase::Linear(factor) => format!("linear ({factor})"),
+                    Increase::Exponential(factor) => format!("exponential ({factor})"),
+                }),
+            ]))
         },
         "diagonal-tiles" => {
-            DiagonalTiles(parse_matrix_size(rng, config, strategy) as u8)
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (DiagonalTiles(n), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+            ]))
         },
         "bouncing-bowtie" => {
-            BouncingBowtie(parse_matrix_size(rng, config, strategy) as u8)
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (BouncingBowtie(n), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+            ]))
         },
         "scanline" => {
-            ScanLine(
-                parse_matrix_size(rng, config, strategy) as u8,
-                parse_orientation(rng, config, strategy)
-            )
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let orientation = parse_orientation(rng, config, strategy);
+
+            (ScanLine(n, orientation.clone()), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+                ("orientation", match orientation {
+                    Orientation::Horizontal => "horizontal".to_string(),
+                    Orientation::Vertical => "vertical".to_string(),
+                }),
+            ]))
         },
         "starburst" => {
-            Starburst(parse_matrix_size(rng, config, strategy) as u8)
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (Starburst(n), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+            ]))
         },
         "shiny-bowtie" => {
-            ShinyBowtie(parse_matrix_size(rng, config, strategy) as u8)
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (ShinyBowtie(n), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+            ]))
         },
         "marble-tile" => {
-            MarbleTile(parse_matrix_size(rng, config, strategy) as u8)
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (MarbleTile(n), ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+            ]))
         },
         "curve-path" => {
-            CurvePath { 
-                n: parse_matrix_size(rng, config, strategy) as u8,
-                amplitude: parse_property_as_f64_param(rng, config, "amplitude")
-                    .unwrap_or(1.0),
-                promotion: parse_property_as_f64_param(rng, config, "promotion")
-                    .unwrap_or(0.0), 
-                halt_threshold: parse_property_as_u64_param(rng, config, "halt-threshold")
-                    .unwrap_or(100) as usize,
-            }
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let amplitude = parse_property_as_f64_param(rng, config, "amplitude")
+                    .unwrap_or(1.0);
+            let promotion = parse_property_as_f64_param(rng, config, "promotion")
+                    .unwrap_or(0.0); 
+            let halt_threshold = parse_property_as_u64_param(rng, config, "halt-threshold")
+                    .unwrap_or(100) as usize;
+
+            (CurvePath { n, amplitude, promotion, halt_threshold }, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+                ("amplitude", format!("{amplitude}")),
+                ("promotion", format!("{promotion}")),
+                ("halt-threshold", format!("{halt_threshold}")),
+            ]))
+        },
+        "zigzag" => {
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let halt_threshold = parse_property_as_u64_param(rng, config, "halt-threshold").unwrap_or(100) as usize;
+            let wrapping = parse_wrapping_set(rng, config).choose(rng).unwrap().clone();
+
+            let magnitude = parse_property_as_f64_tuple_param(rng, config, "magnitude", ("y", "x"));
+            let promotion = parse_property_as_f64_tuple_param(rng, config, "promotion", ("y", "x"));
+
+            let magnitude = (magnitude.0.unwrap_or(1.0), magnitude.1.unwrap_or(1.0));
+            let promotion = (promotion.0.unwrap_or(0.0), promotion.1.unwrap_or(0.0));
+
+            (
+                ZigZag { n, halt_threshold, wrapping: wrapping.clone(), magnitude, promotion }, ("ordered.strategy", vec![
+                    ("name", format!("{strategy}")),
+                    ("matrix-size", format!("{n}")),
+                    ("magnitude", format!("{magnitude:?}")),
+                    ("promotion", format!("{promotion:?}")),
+                    ("wrapping", match wrapping {
+                        Wrapping::None => "none".to_string(),
+                        Wrapping::All => "all".to_string(),
+                        Wrapping::Vertical => "vertical".to_string(),
+                        Wrapping::Horizontal => "horizontal".to_string(),
+                    }),
+                    ("halt-threshold", format!("{halt_threshold}")),
+                ]),
+            )
+        },
+        "broken-spiral" => {
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let halt_threshold = parse_property_as_u64_param(rng, config, "halt-threshold").unwrap_or(100) as usize;
+            
+            let base_step = parse_property_as_f64_tuple_param(rng, config, "base-step", ("y", "x"));
+            let base_step = (base_step.0.unwrap_or(1.0), base_step.1.unwrap_or(1.0));
+
+            let oob_threshold = parse_property_as_u64_param(rng, config, "oob-threshold").unwrap_or((n as f64 / (base_step.0.min(base_step.1))) as u64) as usize;
+            let increment_by = parse_property_as_f64_param(rng, config, "increment-by").unwrap_or(0.0);
+            let increment_in = parse_property_as_u64_param(rng, config, "increment-in").unwrap_or(1) as usize;
+
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+
+            (BrokenSpiral { n, base_step, oob_threshold, increment_by, increment_in }, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("matrix-size", format!("{n}")),
+                ("base-step", format!("{base_step:?}")),
+                ("oob-threshold", format!("{oob_threshold}")),
+                ("increment-by", format!("{increment_by}")),
+                ("increment-in", format!("{increment_in}")),
+            ]))
+        },
+        "modulo-snake" => {
+            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let increment_by = parse_property_as_f64_param(rng, config, "increment-by").unwrap_or(1.0);
+            let modulo = parse_property_as_u64_param(rng, config, "modulo").unwrap_or(10) as usize;
+            let iterations = parse_property_as_u64_param(rng, config, "iterations").unwrap_or(1) as usize;
+
+            (ModuloSnake { n, increment_by, modulo, iterations }, ("ordered.strategy", vec![
+                ("name", format!("{strategy}")),
+                ("increment-by", format!("{increment_by}")),
+                ("modulo", format!("{modulo}")),
+                ("iterations", format!("{iterations}")),
+            ]))
         },
         _ => {
             let strategies = vec![
@@ -352,23 +559,34 @@ fn parse_ordered(rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 "criss-cross", "static", "wavy", "bootleg-bayer", "diagonals", "diagonals-big",
                 "diamond-grid", "speckle-squares", "scales", "trail-scales", "diagonals-n", 
                 "diagonal-tiles", "bouncing-bowtie", "scanline", "starburst", "shiny-bowtie",
-                "marble-tile", "curve-path"
+                "marble-tile", "curve-path", "broken-spiral", "modulo-snake",
             ];
             panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }
     };
 
-    if let Some((mirror_chance, mirror_sets)) = config.get("mirror").map(|mirror| parse_mirror(rng, mirror)) {
-        let mirror_seed = rng.gen_range(0.0..1.0);
-        if mirror_seed <= mirror_chance { 
+    if mirror_chance.is_some() {
+        let (chance, mirror_sets) = mirror_chance.unwrap();
+        if rng.gen_range(0.0..1.0) <= chance { 
             for mirrorline in mirror_sets {
+                parameters.push(("mirror", match mirrorline {
+                    MirrorLine::Upright(flip) => format!("upright [flip={}]", flip.0),
+                    MirrorLine::Downright(flip) => format!("downright [flip={}]", flip.0),
+                    MirrorLine::Horizontal(flip) => format!("horizontal [flip={}]", flip.0),
+                    MirrorLine::Vertical(flip) => format!("vertical [flip={}]", flip.0),
+                }));
                 strategy = strategy.mirror(mirrorline);
             }
         };
     }
+    strategy = if rng.gen_range(0.0..1.0) <= invert_chance {
+        parameters.push(("invert", "true".to_string()));
+        strategy.invert() 
+    } else { 
+        strategy 
+    };
 
-    let invert_seed = rng.gen_range(0.0..1.0);
-    strategy = if invert_seed <= invert_chance { strategy.invert() } else { strategy };
+    log.apply_effect("ordered.strategy", parameters);
 
     Ordered::new(palette, strategy)
 }

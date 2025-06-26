@@ -1,4 +1,4 @@
-use image_effects::dither::ordered::{DiagonalDirection, Flip, Increase, MirrorLine, Orientation};
+use image_effects::dither::ordered::{algorithms::Wrapping, DiagonalDirection, Flip, Increase, MirrorLine, Orientation};
 use rand::{seq::SliceRandom, Rng};
 use serde_yaml::Value;
 
@@ -63,6 +63,30 @@ pub fn parse_mirror_direction_set(rng: &mut impl Rng, value: &Value) -> Vec<Vec<
     }
 
     mirror_lines
+}
+
+pub fn parse_wrapping_set(rng: &mut impl Rng, value: &Value) -> Vec<Wrapping> {
+    let wrappings = value
+        .get("wrappings").expect("[wrappings] must specify at least one direction.")
+        .as_sequence().expect("[wrappings] must be a list.");
+
+    let wrappings = wrappings.iter().map(|wrapping| {
+        wrapping.as_str().expect("[wrappings[$]] must be a string.")
+    }).collect::<Vec<_>>();
+
+    let mut parsed_wrappings = vec![];
+
+    for wrapping in wrappings {
+        parsed_wrappings.push(match wrapping {
+            "horizontal" => Wrapping::Horizontal,
+            "vertical" => Wrapping::Vertical,
+            "all" => Wrapping::All,
+            "none" => Wrapping::None,
+            _ => panic!("[wrappings[$]] found invalid wrapping [{wrapping}]"),
+        });
+    }
+
+    parsed_wrappings
 }
 
 pub fn parse_increase_strategy(rng: &mut impl Rng, value: &Value, strategy: &str) -> Increase {
