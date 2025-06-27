@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use image_effects::prelude::IntoGradientLch;
-use palette::{rgb::Rgb, Lch, Srgb};
+use palette::{rgb::Rgb, Srgb};
 use rand::Rng;
 use serde_yaml::Mapping;
 
@@ -76,7 +76,7 @@ pub enum LumStrategy {
 //          "unified": if true, every colour will undergo the *same nudging*.
 //              note that the per-luminescence nudge will still be random, but
 //              the "nudge factors" will be shared per hue.
-pub fn parse_lum_strategy(mut rng: &mut impl Rng, config: &Mapping) -> (LumStrategy, u64) {
+pub fn parse_lum_strategy(rng: &mut impl Rng, config: &Mapping) -> (LumStrategy, u64) {
     let lum_strategy = config
         .get("lum_strategy").expect("[lum_strategy] is required.")
         .as_mapping().expect("[lum_strategy] must be a mapping.");
@@ -98,7 +98,7 @@ pub fn parse_lum_strategy(mut rng: &mut impl Rng, config: &Mapping) -> (LumStrat
         "random" => {
             let unified = lum_strategy
                 .get("unified")
-                .map_or(false, |param| param.as_bool().expect("[random.unified] must be a boolean."));
+                .is_some_and(|param| param.as_bool().expect("[random.unified] must be a boolean."));
 
             LumStrategy::Random { unified }
         },
@@ -170,7 +170,7 @@ pub enum HueStrategy {
 // "cycle":
 //      hues will be generated linearly over a 360-degree span.
 //      for example, N=1 will add a 180+S, N=2 will add 120+S and 240+S, etc...
-pub fn parse_hue_strategies(mut rng: &mut impl Rng, config: &Mapping) -> Vec<HueStrategy> {
+pub fn parse_hue_strategies(rng: &mut impl Rng, config: &Mapping) -> Vec<HueStrategy> {
     let hue_strategies = config
         .get("hue_strategies").expect("[hue_strategies] is required.")
         .as_sequence().expect("[hue_strategies] must be a list of mappings.");
@@ -240,7 +240,7 @@ pub enum ChromaStrategy {
     Random(Range<f64>)
 }
 
-pub fn parse_chroma_strategy(mut rng: &mut impl Rng, config: &Mapping) -> ChromaStrategy {
+pub fn parse_chroma_strategy(rng: &mut impl Rng, config: &Mapping) -> ChromaStrategy {
     let chroma_strategy = config
         .get("chroma_strategy").expect("[chroma_strategy] is required.")
         .as_mapping().expect("[chroma_strategy] must be a mapping.");
@@ -267,7 +267,7 @@ pub fn parse_inject(rng: &mut impl Rng, config: &Mapping) -> Option<Vec<Rgb>> {
         inject.get("colours").map(|param| {
             let colours = param.as_sequence().expect("[palette.colours] must be a list of valid colours");
 
-            colours.into_iter()
+            colours.iter()
                 .map(|colour| colour.as_mapping().unwrap())
                 .map(|colour| parse_colour(rng, colour))
                 .collect::<Vec<_>>()

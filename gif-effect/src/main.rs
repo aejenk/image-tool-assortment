@@ -1,13 +1,13 @@
 use std::{fs::File, error::Error};
-use common_utils::{palette::{palettes, generate_random_palette, generate_n_random_palettes}, image::{ImageRequest}, effectlog::{LogEntry, ExecLog}};
+use common_utils::{palette::generate_random_palette, image::{ImageRequest}, effectlog::{LogEntry, ExecLog}};
 use image::{codecs::gif::GifEncoder, Frame};
 use image_effects::{prelude::*, dither::bayer::Bayer};
-use palette::{rgb::Rgb, Lch, IntoColor, named};
+use palette::named;
 use rand::{rngs::StdRng, SeedableRng, Rng, seq::SliceRandom};
 
 fn main() -> Result<(), Box<dyn Error>> {
 
-    const TARGET: &'static str = "https://media.tenor.com/z7CgyBnsPAYAAAAC/sunset-cool.gif";
+    const TARGET: &str = "https://media.tenor.com/z7CgyBnsPAYAAAAC/sunset-cool.gif";
 
     let frames = ImageRequest::new(TARGET.into())
         .gif()
@@ -79,7 +79,7 @@ fn generate_gifs_with_alternating_palettes(frames: Vec<Frame>, n: usize) -> Resu
         let possible_matrix_sizes = [2, 4, 8, 16];
         let matrix_size = possible_matrix_sizes.choose(&mut rng).unwrap();
         log.add_entry(LogEntry::effect("dither(bayer)".into(), format!("matrix-size({matrix_size})")));
-        log.add_entry(LogEntry::effect(format!("{} generated palettes.", frames.len()), format!("[omitted]")));
+        log.add_entry(LogEntry::effect(format!("{} generated palettes.", frames.len()), "[omitted]".to_string()));
 
         let frames = frames.clone().into_iter().map(|mut frame| {
             let (palette, _) = generate_random_palette(&mut rng);

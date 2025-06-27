@@ -12,7 +12,7 @@ pub fn parse_property_as_f64_param(rng: &mut impl Rng, value: &Value, property_n
 }
 
 pub fn parse_property_as_str_param(rng: &mut impl Rng, value: &Value, property_name: &str) -> Option<String> {
-    value.get(property_name).map(|prop| prop.as_str().expect(format!("[{property_name}] must be a string.").as_str()))
+    value.get(property_name).map(|prop| prop.as_str().unwrap_or_else(|| panic!("[{property_name}] must be a string.")))
         .map(|s| s.to_string())
 }
 
@@ -26,7 +26,7 @@ pub fn parse_property_as_mapping_param(rng: &mut impl Rng, value: &Value, proper
 }
 
 pub fn parse_property_as_f64_tuple_param(rng: &mut impl Rng, value: &Value, property_name: &str, subprop_names: (&str, &str)) -> (Option<f64>, Option<f64>) {
-    let mapping = parse_property_as_mapping_param(rng, value, property_name).expect(format!("[{property_name}] must be a mapping").as_str());
+    let mapping = parse_property_as_mapping_param(rng, value, property_name).unwrap_or_else(|| panic!("[{property_name}] must be a mapping"));
     let mapping = Value::Mapping(mapping);
 
     let prop1 = parse_property_as_f64_param(rng, &mapping, subprop_names.0);

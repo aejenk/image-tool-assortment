@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 
 // logging structs
 pub struct AppLog {
@@ -45,7 +45,7 @@ impl RunLog {
         let mut entry = LogEntry::init();
 
         let mut message = format!(
-            "Applying effect [{}], with the following parameters...\n", name
+            "Applying effect [{name}], with the following parameters...\n"
         );
 
         entry.tab_in();
@@ -76,7 +76,7 @@ impl LogEntry {
     } 
 
     fn tab_in(&mut self) -> &mut Self {
-        self.nesting_level = self.nesting_level + 1;
+        self.nesting_level += 1;
         self
     }
 
@@ -85,7 +85,7 @@ impl LogEntry {
         let mut tabs = String::new();
 
         for _ in 0..self.nesting_level {
-            tabs.push_str("\t");
+            tabs.push('\t');
         }
 
         tabs
@@ -95,11 +95,11 @@ impl LogEntry {
 // display impls
 impl Display for AppLog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[ === APP INFO === ]\n");
-        write!(f, "[{:^10}]: {}: {}\n", "source", self.media_type, self.input_path);
-        write!(f, "[{:^10}]: {}\n", "output", self.output_path);
-        write!(f, "[{:^10}]: {}\n", "iterations", self.n);
-        write!(f, "[{:^10}]: {}\n", "max-dim", self.max_dim.map(|s| format!("{s}")).unwrap_or("(unspecified)".to_string()));
+        writeln!(f, "[ === APP INFO === ]");
+        writeln!(f, "[{:^10}]: {}: {}", "source", self.media_type, self.input_path);
+        writeln!(f, "[{:^10}]: {}", "output", self.output_path);
+        writeln!(f, "[{:^10}]: {}", "iterations", self.n);
+        writeln!(f, "[{:^10}]: {}", "max-dim", self.max_dim.map(|s| format!("{s}")).unwrap_or("(unspecified)".to_string()));
 
         write!(f, "\n[ ===== RUNS ===== ]\n{}", join_to_string(&self.runs, "\n\n"))
     }
@@ -121,7 +121,7 @@ impl Display for LogEntry {
 fn join_to_string<T: Display>(vec: &Vec<T>, delimiter: &'static str) -> String {
     vec
     .iter()
-    .map(|s| format!("{}", s))
+    .map(|s| format!("{s}"))
     .collect::<Vec<String>>()
     .join(delimiter)
 }

@@ -5,7 +5,7 @@ use std::io::{Cursor, Read};
 use base64::Engine;
 use image::codecs::gif::GifDecoder;
 use image::io::Reader as ImageReader;
-use image::{self, imageops, DynamicImage, GenericImageView, Frame, AnimationDecoder, Frames, EncodableLayout};
+use image::{self, imageops, DynamicImage, GenericImageView, Frame, AnimationDecoder, EncodableLayout};
 
 type UtilResult<T> = Result<T,Box<dyn Error>>;
 
@@ -153,7 +153,7 @@ pub fn resize_image(image: &DynamicImage, factor: f32) -> DynamicImage {
 pub fn resize_image_with_max_dim(image: &DynamicImage, maxdim: usize) -> DynamicImage {
     let (x, y) = image.dimensions();
     if maxdim < x.max(y) as usize {
-        resize_image(&image, maxdim as f32 / x.max(y) as f32)
+        resize_image(image, maxdim as f32 / x.max(y) as f32)
     } else {
         image.clone()
     }

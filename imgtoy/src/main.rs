@@ -1,10 +1,8 @@
 use std::{error::Error, fs::File, io::Write, path::Path};
 
-use effects::EffectKind;
 use image::{DynamicImage, Frame, codecs::gif::GifEncoder};
 use image_effects::prelude::Effect;
 use rand::{rngs::StdRng, SeedableRng};
-use serde::Deserialize;
 use source::{SourceKind, MediaType, Source};
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -24,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config_file = args.nth(1).unwrap();
 
-    println!("[...] - Reading configuration file: {}", config_file);
+    println!("[...] - Reading configuration file: {config_file}");
 
     let config = std::fs::read_to_string(config_file)?;
 
@@ -91,7 +89,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match source.media_type {
             MediaType::Image => {
                 let effects = parse_effects::<DynamicImage>(&mut run, &mut rng, &yaml);
-                let mut image = (&media).clone().into_image().unwrap();
+                let mut image = media.clone().into_image().unwrap();
                 for effect in &effects {
                     bar.tick();
                     image = effect.affect(image);
@@ -100,7 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
             MediaType::Gif => {
                 let effects = parse_effects::<Frame>(&mut run, &mut rng, &yaml);
-                let frames = (&media).clone().into_gif().unwrap();
+                let frames = media.clone().into_gif().unwrap();
                 let frames_amnt = frames.len();
                 let frames = frames.into_iter().enumerate().map(|(i, mut frame)| {
                     bar.set_message(format!("frame {i} of {frames_amnt}"));

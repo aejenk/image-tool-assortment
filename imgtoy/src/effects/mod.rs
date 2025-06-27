@@ -288,15 +288,15 @@ fn parse_gradient_map(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Gradien
         log.apply_effect("gradient-map", vec![("noise", format!("{noise}"))]);
         log.apply_effect(
             "gradient-map",
-            vec![("noise-chance", format!("{}", noise_chance))],
+            vec![("noise-chance", format!("{noise_chance}"))],
         );
         log.apply_effect(
             "gradient-map",
-            vec![("min-brightness", format!("{}", min_brightness))],
+            vec![("min-brightness", format!("{min_brightness}"))],
         );
         log.apply_effect(
             "gradient-map",
-            vec![("max-brightness", format!("{}", max_brightness))],
+            vec![("max-brightness", format!("{max_brightness}"))],
         );
 
         let generated_map = generate_gradient_map(
@@ -357,7 +357,7 @@ fn parse_quantize_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Quantiz
         .map(|h| format!("{h:.3}"))
         .collect::<Vec<String>>();
 
-    log.apply_effect("quantize-hue", vec![("hues", format!("{:?}", hues_str))]);
+    log.apply_effect("quantize-hue", vec![("hues", format!("{hues_str:?}"))]);
 
     QuantizeHue::with_hues(hues)
 }
@@ -367,7 +367,7 @@ fn parse_multiply_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Multipl
 
     let factor = parse_f64_param(rng, param) as f32;
 
-    log.apply_effect("multiply-hue", vec![("factor", format!("{}", factor))]);
+    log.apply_effect("multiply-hue", vec![("factor", format!("{factor}"))]);
 
     MultiplyHue(factor)
 }
@@ -404,9 +404,9 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
-                        ("matrix-size", format!("{}", size)),
-                        ("invert", format!("{}", invert_chance)),
+                        ("name", strategy.to_string()),
+                        ("matrix-size", format!("{size}")),
+                        ("invert", format!("{invert_chance}")),
                     ],
                 ),
             )
@@ -418,8 +418,8 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 ((
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
-                        ("matrix-size", format!("{}", size)),
+                        ("name", strategy.to_string()),
+                        ("matrix-size", format!("{size}")),
                     ],
                 )),
             )
@@ -431,35 +431,35 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
-                        ("matrix-size", format!("{}", size)),
+                        ("name", strategy.to_string()),
+                        ("matrix-size", format!("{size}")),
                     ],
                 ),
             )
         }
         "stars" => (
             Stars,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "new-stars" => (
             NewStars,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "grid" => (
             Grid,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "trail" => (
             Trail,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "criss-cross" => (
             Crisscross,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "static" => (
             Static,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "wavy" => {
             let orientation = parse_orientation(rng, config, strategy);
@@ -472,39 +472,39 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
-                        ("orientation", format!("{}", o_str)),
+                        ("name", strategy.to_string()),
+                        ("orientation", o_str.to_string()),
                     ],
                 ),
             )
         }
         "bootleg-bayer" => (
             BootlegBayer,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "diagonals" => (
             Diagonals,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "diagonals-big" => (
             DiagonalsBig,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "diamond-grid" => (
             DiamondGrid,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "speckle-squares" => (
             SpeckleSquares,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "scales" => (
             Scales,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "trail-scales" => (
             TrailScales,
-            ("ordered.strategy", vec![("name", format!("{strategy}"))]),
+            ("ordered.strategy", vec![("name", strategy.to_string())]),
         ),
         "diagonals-n" => {
             let n = parse_matrix_size(rng, config, strategy) as usize;
@@ -520,7 +520,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         (
                             "direction",
                             match direction {
@@ -547,7 +547,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                     ],
                 ),
@@ -561,7 +561,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                     ],
                 ),
@@ -576,7 +576,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                         (
                             "orientation",
@@ -597,7 +597,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                     ],
                 ),
@@ -611,7 +611,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                     ],
                 ),
@@ -625,7 +625,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                     ],
                 ),
@@ -648,7 +648,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                         ("amplitude", format!("{amplitude}")),
                         ("promotion", format!("{promotion}")),
@@ -680,7 +680,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                         ("magnitude", format!("{magnitude:?}")),
                         ("promotion", format!("{promotion:?}")),
@@ -727,7 +727,7 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
+                        ("name", strategy.to_string()),
                         ("matrix-size", format!("{n}")),
                         ("base-step", format!("{base_step:?}")),
                         ("oob-threshold", format!("{oob_threshold}")),
@@ -755,8 +755,8 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
                 (
                     "ordered.strategy",
                     vec![
-                        ("name", format!("{strategy}")),
-                        ("matrix-size", format!("{}", n)),
+                        ("name", strategy.to_string()),
+                        ("matrix-size", format!("{n}")),
                         ("increment-by", format!("{increment_by}")),
                         ("modulo", format!("{modulo}")),
                         ("iterations", format!("{iterations}")),
@@ -848,7 +848,7 @@ fn parse_error_propagator<'a, 'b>(
 
     let palette = config
         .get("palette")
-        .expect(format!("[{algorithm_name}] requires a [palette] to be set.").as_str());
+        .unwrap_or_else(|| panic!("[{algorithm_name}] requires a [palette] to be set."));
 
     let palette = parse_palette(rng, palette);
 
@@ -877,7 +877,7 @@ fn parse_palette(rng: &mut impl Rng, param: &serde_yaml::Value) -> Vec<Srgb> {
                     .expect("[palette.colours] must be a list of valid colours");
 
                 colours
-                    .into_iter()
+                    .iter()
                     .map(|colour| colour.as_mapping().unwrap())
                     .map(|colour| parse_colour(rng, colour))
                     .collect::<Vec<_>>()
@@ -937,7 +937,7 @@ fn generate_random_palette(mut rng: &mut impl Rng) -> Vec<Srgb> {
     palette
 }
 
-fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb> {
+fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb> {
     let max_lum = config
         .get("max_lum")
         .map_or(100.0, |param| parse_f64_param(rng, param));
@@ -1018,13 +1018,11 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
     for strategy in hue_strategies.iter() {
         match strategy {
             HueStrategy::Neighbour { size, n, dist } => {
-                hues = vec![hues, generate_hue_neighbourhood(seed_hue, *size, *n, dist)].concat()
+                hues = [hues, generate_hue_neighbourhood(seed_hue, *size, *n, dist)].concat()
             }
             HueStrategy::Contrast { size, n, dist } => {
-                hues = vec![
-                    hues,
-                    generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist),
-                ]
+                hues = [hues,
+                    generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist)]
                 .concat()
             }
             HueStrategy::Penpal {
@@ -1033,10 +1031,8 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
                 dist,
                 distance,
             } => {
-                hues = vec![
-                    hues,
-                    generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist),
-                ]
+                hues = [hues,
+                    generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist)]
                 .concat()
             }
             HueStrategy::Cycle { n } => {
@@ -1155,7 +1151,7 @@ fn generate_random_palette_v2(mut rng: &mut impl Rng, config: &Mapping) -> Vec<S
             .into_iter()
             .map(|colour| colour.into_color())
             .collect();
-        palette = vec![palette, lch_colours].concat();
+        palette = [palette, lch_colours].concat();
     }
 
     palette

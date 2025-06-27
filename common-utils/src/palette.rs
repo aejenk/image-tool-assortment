@@ -105,7 +105,7 @@ pub fn palettes<'a>() -> Vec<(&'a str, Vec<Rgb>)> {
             [
                 RGB::RED.build_gradient(40, GRADIENT_METHOD),
                 {
-                    let mut red = RGB::RED.clone();
+                    let mut red = RGB::RED;
                     red.red = 0.4;
                     red 
                 }.build_gradient(10, GRADIENT_METHOD),
@@ -338,15 +338,13 @@ pub fn generate_palette_html(gradient: Vec<Rgb>) -> String {
         format!("<div style=\"height: 100%; background: rgb({r},{g},{b}); flex-grow: 1; padding:3px;\"></div>")
     }).collect::<Vec<_>>().concat();
 
-    vec![
-        "<div style:\"width: 100%; display: flex; flex-wrap: wrap;\">",
+    ["<div style:\"width: 100%; display: flex; flex-wrap: wrap;\">",
         &palette_html,
-        "</div>",
-    ].concat()
+        "</div>"].concat()
 }
 
 pub fn generate_hue_gradient(hue: f32) -> Vec<Vec<Lch>> {
-    (0..8).into_iter().map(|chroma| Lch::new(0.0, 128.0 - (chroma*16) as f32, hue).build_gradient_lch(10)).collect()
+    (0..8).map(|chroma| Lch::new(0.0, 128.0 - (chroma*16) as f32, hue).build_gradient_lch(10)).collect()
 }
 
 pub fn print_gradient_grid(gradient: Vec<Vec<Lch>>) {
@@ -357,11 +355,9 @@ pub fn print_gradient_grid(gradient: Vec<Vec<Lch>>) {
             format!("<div style=\"height: 100%; background: lch({l}% {c} {h}); flex-grow: 1; padding:3px;\"></div>")
         }).collect::<Vec<_>>().join("\n");
 
-        vec![
-            "<div style=\"width: 100%; height:50px; display: flex;\">",
+        ["<div style=\"width: 100%; height:50px; display: flex;\">",
             html_lines.as_str(),
-            "</div>",
-        ].join("\n")
+            "</div>"].join("\n")
     }).collect::<Vec<_>>().join("\n");
 
     println!("{div}");

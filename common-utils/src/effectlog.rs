@@ -52,6 +52,12 @@ pub struct ExecLog {
     log: Vec<LogEntry>,
 }
 
+impl Default for ExecLog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExecLog {
     pub fn new() -> Self {
         ExecLog { log: Vec::new() }

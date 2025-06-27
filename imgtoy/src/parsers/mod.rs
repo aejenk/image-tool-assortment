@@ -20,9 +20,9 @@ pub fn parse_u64_param(rng: &mut impl Rng, param: &serde_yaml::Value) -> u64 {
         rng.gen_range(min..max)
     } else if let Some(options) = param.as_sequence() {
         let picked = options.choose(rng).unwrap();
-        let picked = picked.as_u64().expect("[brighten] options should be valid floats.");
+        
 
-        picked
+        picked.as_u64().expect("[brighten] options should be valid floats.")
     } else {
         todo!()
     }
@@ -43,9 +43,9 @@ pub fn parse_f64_param(rng: &mut impl Rng, param: &serde_yaml::Value) -> f64 {
         rng.gen_range(min..max)
     } else if let Some(options) = param.as_sequence() {
         let picked = options.choose(rng).unwrap();
-        let picked = picked.as_f64().expect("[brighten] options should be valid floats.");
+        
 
-        picked
+        picked.as_f64().expect("[brighten] options should be valid floats.")
     } else {
         todo!()
     }

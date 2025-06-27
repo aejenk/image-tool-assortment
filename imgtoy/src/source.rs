@@ -1,6 +1,9 @@
 use std::{error::Error, fs::File, io::Read};
 
-use image::{DynamicImage, imageops, GenericImageView, codecs::gif::GifDecoder, AnimationDecoder, Frame, io::Reader};
+use image::{
+    codecs::gif::GifDecoder, imageops, io::Reader, AnimationDecoder, DynamicImage, Frame,
+    GenericImageView,
+};
 
 #[derive(Clone)]
 pub enum ImageResult {
@@ -49,7 +52,8 @@ pub enum SourceKind {
 
 #[derive(Debug, Clone)]
 pub enum MediaType {
-    Image, Gif,
+    Image,
+    Gif,
 }
 
 #[derive(Debug, Clone)]
@@ -59,15 +63,23 @@ pub struct Source {
     pub max_dim: Option<usize>,
 }
 
-type UtilResult<T> = Result<T,Box<dyn Error>>;
+type UtilResult<T> = Result<T, Box<dyn Error>>;
 
 impl Source {
     pub fn perform(&self) -> UtilResult<ImageResult> {
         let result = match (&self.media_type, &self.source, &self.max_dim) {
-            (MediaType::Image, SourceKind::File(target), None) => load_image_from_path(target)?.into(),
-            (MediaType::Image, SourceKind::File(target), Some(max_dim)) => load_image_from_path_with_max_dim(target, *max_dim)?.into(),
-            (MediaType::Image, SourceKind::Url(target), None) => load_image_from_url(target)?.into(),
-            (MediaType::Image, SourceKind::Url(target), Some(max_dim)) => load_image_from_url_with_max_dim(target, *max_dim)?.into(),
+            (MediaType::Image, SourceKind::File(target), None) => {
+                load_image_from_path(target)?.into()
+            }
+            (MediaType::Image, SourceKind::File(target), Some(max_dim)) => {
+                load_image_from_path_with_max_dim(target, *max_dim)?.into()
+            }
+            (MediaType::Image, SourceKind::Url(target), None) => {
+                load_image_from_url(target)?.into()
+            }
+            (MediaType::Image, SourceKind::Url(target), Some(max_dim)) => {
+                load_image_from_url_with_max_dim(target, *max_dim)?.into()
+            }
             (MediaType::Gif, SourceKind::File(target), _) => load_gif_from_file(target)?.into(),
             (MediaType::Gif, SourceKind::Url(target), _) => load_gif_from_url(target)?.into(),
         };
@@ -86,7 +98,7 @@ pub fn resize_image(image: &DynamicImage, factor: f32) -> DynamicImage {
 pub fn resize_image_with_max_dim(image: &DynamicImage, maxdim: usize) -> DynamicImage {
     let (x, y) = image.dimensions();
     if maxdim < x.max(y) as usize {
-        resize_image(&image, maxdim as f32 / x.max(y) as f32)
+        resize_image(image, maxdim as f32 / x.max(y) as f32)
     } else {
         image.clone()
     }
@@ -124,9 +136,11 @@ fn load_gif_from_file(path: &str) -> UtilResult<Vec<Frame>> {
 
 fn load_gif_from_url(url: &str) -> UtilResult<Vec<Frame>> {
     let mut gif_bytes = reqwest::blocking::get(url)?;
-    
+
     let mut data = Vec::new();
     gif_bytes.read_to_end(&mut data)?;
-    
-    Ok(GifDecoder::new(data.as_slice())?.into_frames().collect_frames()?)
+
+    Ok(GifDecoder::new(data.as_slice())?
+        .into_frames()
+        .collect_frames()?)
 }

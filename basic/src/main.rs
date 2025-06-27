@@ -1,17 +1,16 @@
-use std::{error::Error, vec, fmt::format};
+use std::error::Error;
 
-use common_utils::{image::ImageRequest, effectlog::{LogEntry, ExecLog}, palette::generate_n_random_palettes};
+use common_utils::{image::ImageRequest, palette::generate_n_random_palettes};
 use image::DynamicImage;
 use image_effects::{
-    prelude::*,
-    gradient_map, GradientMap, dither::{bayer::Bayer, ATKINSON},
+    prelude::*, dither::bayer::Bayer,
 };
-use palette::{Lch, IntoColor, rgb::Rgb, named};
+use palette::rgb::Rgb;
 use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom, Rng};
 
 fn main() -> Result<(), Box<dyn Error>> {
 
-    const TARGET: &'static str = "https://images.enbyss.com/_/gallery/eye-of-mine.png";
+    const TARGET: &str = "https://images.enbyss.com/_/gallery/eye-of-mine.png";
 
     let image = ImageRequest::new(TARGET.into())
         .image()
@@ -36,7 +35,7 @@ fn generate_images_with_n_random_palettes(image: DynamicImage, n: usize) -> Resu
     let mut rng = StdRng::from_entropy();
     let palettes = generate_n_random_palettes(&mut rng, n);
 
-    for (i, (palette, mut log)) in palettes.into_iter().enumerate() {
+    for (i, (palette, log)) in palettes.into_iter().enumerate() {
         println!("palette {i} / {n}");
 
         let possible_matrix_sizes = [2, 4, 8, 16];
@@ -93,7 +92,7 @@ fn generate_images_with_predetermined_palettes(image: DynamicImage, palettes: Ve
     // let palettes = common_utils::palette::palettes();
 
     for (name, palette) in palettes {
-        println!("Palette: {}", name);
+        println!("Palette: {name}");
         image
             .clone()
             // .apply(&Filter::Brighten( 0.1))
@@ -107,7 +106,7 @@ fn generate_images_with_predetermined_palettes(image: DynamicImage, palettes: Ve
             // .apply(&Filter::Contrast(2.5))
             // .apply(&Filter::RotateHue(240.0))
             // .apply(&Filter::MultiplyHue(80.0))
-            .save(format!("./basic/data/output-{}.png", name))?;
+            .save(format!("./basic/data/output-{name}.png"))?;
     }
 
     Ok(())
