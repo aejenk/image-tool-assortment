@@ -35,7 +35,7 @@ pub fn parse_mirror_direction_set(rng: &mut impl Rng, value: &Value) -> Vec<Vec<
         .as_sequence().expect("[mirror.directions] must be a list.");
 
     let flip_chance = parse_property_as_f64_param(rng, value, "flip").unwrap_or(0.0);
-    let flip = Flip(rng.gen_range(0.0..1.0) < flip_chance);
+    let mut get_flip = || Flip(rng.gen_range(0.0..1.0) < flip_chance);
 
     let directions = directions.iter().map(|direction_set| {
         let direction_set = direction_set.as_sequence().expect("[mirror.directions[$]] should be a sequence of strings.");
@@ -51,10 +51,10 @@ pub fn parse_mirror_direction_set(rng: &mut impl Rng, value: &Value) -> Vec<Vec<
 
         for direction in direction_set {
             parsed_set.push(match direction {
-                "downright" => MirrorLine::Downright(flip),
-                "upright" => MirrorLine::Upright(flip),
-                "horizontal" => MirrorLine::Downright(flip),
-                "vertical" => MirrorLine::Downright(flip),
+                "downright" => MirrorLine::Downright(get_flip()),
+                "upright" => MirrorLine::Upright(get_flip()),
+                "horizontal" => MirrorLine::Downright(get_flip()),
+                "vertical" => MirrorLine::Downright(get_flip()),
                 _ => panic!("[mirror.directions[$].direction] found invalid direction [{direction}]"),
             });
         }

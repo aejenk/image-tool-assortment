@@ -38,9 +38,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let source = parse_source(&yaml);
 
-    match &source.source {
-        SourceKind::File(path) => println!("[...] - Source is file at path: {path}"),
-        SourceKind::Url(url) => println!("[...] - Source is at URL: {url}"),
+    let (source_kind, source_path) = match &source.source {
+        SourceKind::File(path) => {
+            println!("[...] - Source is file at path: {path}");
+            ("file", path)
+        },
+        SourceKind::Url(url) => {
+            println!("[...] - Source is at URL: {url}");
+            ("url", url)
+        },
     };
 
 
@@ -65,7 +71,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let media = source.perform()?;
 
     // Logging initialising
-    let mut log = AppLog::init();
+    let mut log = AppLog::init(
+        source_path.clone(),
+        out_path.to_string(),
+        iterations as usize,
+        source_kind.to_string(),
+        source.max_dim
+    );
     // TODO: Add initial setup.
 
     let bar = ProgressBar::new(iterations);

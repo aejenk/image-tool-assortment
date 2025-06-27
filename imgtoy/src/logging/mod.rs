@@ -3,6 +3,11 @@ use std::fmt::{Display, Formatter};
 // logging structs
 pub struct AppLog {
     runs: Vec<RunLog>,
+    input_path: String,
+    output_path: String,
+    n: usize,
+    media_type: String,
+    max_dim: Option<usize>,
 }
 pub struct RunLog {
     entries: Vec<LogEntry>,
@@ -16,8 +21,8 @@ pub struct LogEntry {
 
 // LOGIC
 impl AppLog {
-    pub fn init() -> Self {
-        AppLog { runs: vec![] }
+    pub fn init(input_path: String, output_path: String, n: usize, media_type: String, max_dim: Option<usize>) -> Self {
+        AppLog { runs: vec![], input_path, output_path, n, media_type, max_dim }
     }
 
     pub fn add_run(&mut self, run: RunLog) -> &mut Self {
@@ -46,7 +51,10 @@ impl RunLog {
         entry.tab_in();
 
         for (p_name, value) in parameters {
-            message.push_str(&entry.tabs(format!("[{name}.{p_name}]: {value}\n")));
+            message.push_str(&entry.tabs(format!(
+                "[{:>30}]: {value}\n",
+                format!("{name}.{p_name}"),
+            )));
         }
 
         entry.message = message;
@@ -87,7 +95,13 @@ impl LogEntry {
 // display impls
 impl Display for AppLog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[ === RUNS === ]\n{}", join_to_string(&self.runs, "\n\n"))
+        write!(f, "[ === APP INFO === ]\n");
+        write!(f, "[{:^10}]: {}: {}\n", "source", self.media_type, self.input_path);
+        write!(f, "[{:^10}]: {}\n", "output", self.output_path);
+        write!(f, "[{:^10}]: {}\n", "iterations", self.n);
+        write!(f, "[{:^10}]: {}\n", "max-dim", self.max_dim.map(|s| format!("{s}")).unwrap_or("(unspecified)".to_string()));
+
+        write!(f, "\n[ ===== RUNS ===== ]\n{}", join_to_string(&self.runs, "\n\n"))
     }
 }
 
