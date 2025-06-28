@@ -29,9 +29,9 @@ impl SystemLog {
             log,
             app_log,
             indent: 0,
-            indent_str: " ".into(),
+            indent_str: "    ".into(),
             categories: vec![],
-            pause: true,
+            pause: false,
         })
     }
 
@@ -59,6 +59,7 @@ impl SystemLog {
     // effects
     pub fn header(&mut self, string: impl Display) -> WriteResult {
         self.debug_log("header", format!("{string}"))?;
+        writeln!(self.log, "[ {string:=^50} ]")?;
         writeln!(self.log, "[ {string:=^20} ]")?;
         Ok(self)
     }
@@ -85,6 +86,7 @@ impl SystemLog {
     pub fn begin_category(&mut self, category: impl Display) -> WriteResult {
         self.indent();
         self.debug_log("category start", "")?;
+        // self.message(format!("[{category}]"))?;
         self.message(format!("[ {:~^15} ]", format!(" {category} ")))?;
         self.categories.push(format!("{category}"));
         Ok(self)
@@ -98,6 +100,7 @@ impl SystemLog {
 
         self.debug_log("data", format!("indent is [{}]", self.indent))?;
 
+        //self.message(format!("({property}: {value}"))
         if self.indent != 0 {
             self.message(format!("|{property:_>15}: {value}"))
         } else {
@@ -115,9 +118,6 @@ impl SystemLog {
     // logs
     fn status_log(&mut self, logtype: &str, status: &str, string: impl Display) -> WriteResult {
         write!(self.app_log, "[{status:>5}] [{logtype:>20}]: ")?;
-        if !self.pause {
-            self.push_indent()?;
-        }
         writeln!(self.app_log, "{string}")?;
         Ok(self)
     }
