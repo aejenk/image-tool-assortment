@@ -3,16 +3,23 @@ use std::ops::Range;
 use image_effects::prelude::IntoGradientLch;
 use palette::{rgb::Rgb, Srgb};
 use rand::Rng;
-use serde_yaml::Mapping;
+use serde_yaml::{Mapping, Value};
 
-use super::{parse_f64_param, parse_u64_param};
+use crate::{
+    effects::{BaseResult, Log},
+    parsers::util::{
+        parse_property_as_f64_complex, parse_property_as_str, parse_property_as_u64_complex,
+        parse_value_as_f64_sequence_complex,
+    },
+};
 
+#[allow(dead_code)]
 pub enum LumStrategy {
     Exact(Vec<f64>),
     Random { unified: bool },
     Distributed,
     DistributedArea { overlap: Option<f64> },
-    DistributedNudge { nudge_size: f64 }
+    DistributedNudge { nudge_size: f64 },
 }
 
 // LUM STRATEGY
@@ -46,13 +53,13 @@ pub enum LumStrategy {
 //      the variants will be generated with *random luminescence*.
 //      these levels will be random PER HUE.
 //      this will result in an effect where *luminescence* contributes to color difference,
-//      
+//
 // "pseudo-random":
 //      same as "random", except ALL HUES will share the same luminescence.
 //      this ensures that ONLY HUEs will affect color difference.
 //
 // "distributed":
-//      the variants will be generated to cover the entire span of LUM. 
+//      the variants will be generated to cover the entire span of LUM.
 //      if N is 1, it will be the same as "random".
 //      if N is 2, the variants will both be at the extremes.
 //      for N > 2, additional variants should be split across the range.
@@ -76,59 +83,79 @@ pub enum LumStrategy {
 //          "unified": if true, every colour will undergo the *same nudging*.
 //              note that the per-luminescence nudge will still be random, but
 //              the "nudge factors" will be shared per hue.
-pub fn parse_lum_strategy(rng: &mut impl Rng, config: &Mapping) -> (LumStrategy, u64) {
-    let lum_strategy = config
-        .get("lum_strategy").expect("[lum_strategy] is required.")
-        .as_mapping().expect("[lum_strategy] must be a mapping.");
+pub fn parse_lum_strategy(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<(LumStrategy, u64)> {
+    let lum_strategy = value
+        .get("lum-strategy")
+        .expect("[lum-strategy] is required to be specified.");
 
-    let strategy_type = lum_strategy
-        .get("type").expect("[lum_strategy] must have a [.type]")
-        .as_str().expect("[lum_strategy.type] must be string.");
+    let strategy_type = parse_property_as_str(log, lum_strategy, "type")?
+        .expect("[lum-strategy.type] must be string.");
+    let count = parse_property_as_u64_complex(log, rng, lum_strategy, "count")?
+        .expect("[lum-strategy.count] is required.");
 
-    let lum_amnt = parse_u64_param(rng, lum_strategy.get("count").expect("[lum_strategy] must have a [.count]"));
+    Ok((
+        match strategy_type.as_str() {
+            "exact" => LumStrategy::Exact(
+                parse_value_as_f64_sequence_complex(log, rng, lum_strategy, "lums")?
+                    .expect("[exact.lums] must be a list of floats."),
+            ),
+            "random" => {
+                let unified = lum_strategy.get("unified").is_some_and(|param| {
+                    param
+                        .as_bool()
+                        .expect("[random.unified] must be a boolean.")
+                });
 
-    (match strategy_type {
-        "exact" => {
-            let lums = lum_strategy
-                .get("lums").expect("[exact] lum_strategy must have [lums] specified.")
-                .as_sequence().expect("[exact.lums] must be a list of floats.");
-
-            LumStrategy::Exact(lums.iter().map(|param| parse_f64_param(rng, param)).collect())
+                LumStrategy::Random { unified }
+            }
+            "distributed" => LumStrategy::Distributed,
+            "distributed/area" => {
+                let overlap = parse_property_as_f64_complex(log, rng, lum_strategy, "overlap")?;
+                LumStrategy::DistributedArea { overlap }
+            }
+            "distributed/nudge" => {
+                if let Some(nudge_size) =
+                    parse_property_as_f64_complex(log, rng, lum_strategy, "nudge-size")?
+                {
+                    LumStrategy::DistributedNudge { nudge_size }
+                } else {
+                    panic!("if [lum-strategy] was [distributed/nudge], [nudge-size] is required.")
+                }
+            }
+            _ => panic!("{strategy_type} is not a valid lum_strategy."),
         },
-        "random" => {
-            let unified = lum_strategy
-                .get("unified")
-                .is_some_and(|param| param.as_bool().expect("[random.unified] must be a boolean."));
-
-            LumStrategy::Random { unified }
-        },
-        "distributed" => {
-            LumStrategy::Distributed
-        },
-        "distributed/area" => {
-            let overlap = lum_strategy
-                .get("overlap")
-                .map(|param| parse_f64_param(rng, param));
-
-            LumStrategy::DistributedArea { overlap }
-        },
-        "distributed/nudge" => {
-            let nudge_size = lum_strategy
-                .get("nudge_size")
-                .map_or_else(|| panic!("[distributed/nudge] must have [.nudge_size] specified."), |param| parse_f64_param(rng, param));
-
-            LumStrategy::DistributedNudge { nudge_size }
-        },
-        _ => panic!("{strategy_type} is not a valid lum_strategy."),
-    }, lum_amnt)
+        count,
+    ))
 }
 
-pub enum HueDistribution { Linear, Random }
+pub enum HueDistribution {
+    Linear,
+    Random,
+}
 pub enum HueStrategy {
-    Neighbour { size: f64, n: u64, dist: HueDistribution },
-    Contrast { size: f64, n: u64, dist: HueDistribution },
-    Penpal { size: f64, n: u64, dist: HueDistribution, distance: f64 },
-    Cycle { n: u64 }
+    Neighbour {
+        size: f64,
+        n: u64,
+        dist: HueDistribution,
+    },
+    Contrast {
+        size: f64,
+        n: u64,
+        dist: HueDistribution,
+    },
+    Penpal {
+        size: f64,
+        n: u64,
+        dist: HueDistribution,
+        distance: f64,
+    },
+    Cycle {
+        n: u64,
+    },
 }
 
 // HUE STRATEGY
@@ -156,7 +183,7 @@ pub enum HueStrategy {
 //      so for a "neighbourhood" size of 30, it will generate hues from -15 to +15
 //      of the "seed" hue. they can be generated within the range, or distributed.
 //      PARAMETERS: size, distribution
-//      
+//
 // "contrast":
 //      hues will be chosen from the "opposite neighbourhood".
 //      it's essentially the same as "neighbour", except when generating, the base
@@ -170,19 +197,29 @@ pub enum HueStrategy {
 // "cycle":
 //      hues will be generated linearly over a 360-degree span.
 //      for example, N=1 will add a 180+S, N=2 will add 120+S and 240+S, etc...
-pub fn parse_hue_strategies(rng: &mut impl Rng, config: &Mapping) -> Vec<HueStrategy> {
-    let hue_strategies = config
-        .get("hue_strategies").expect("[hue_strategies] is required.")
-        .as_sequence().expect("[hue_strategies] must be a list of mappings.");
+pub fn parse_hue_strategies(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<Vec<HueStrategy>> {
+    let raw_hue_strategies = value
+        .get("hue-strategies")
+        .expect("[hue-strategies] is required.")
+        .as_sequence()
+        .expect("[hue-strategies] must be a list of mappings.");
 
-    hue_strategies.iter().flat_map(|strategy| {
+    let mut hue_strategies = vec![];
+
+    for strategy in raw_hue_strategies {
         if !strategy.is_mapping() {
             panic!("[hue_strategies] entries must be mappings.")
         }
 
         let strategy_type = strategy
-            .get("type").expect("[hue_strategies] entries must have a [.type].")
-            .as_str().expect("[hue_strategies.#.type] must be a string.");
+            .get("type")
+            .expect("[hue-strategies] entries must have a [.type].")
+            .as_str()
+            .expect("[hue-strategies.#.type] must be a string.");
 
         let get_dist = |dist: &str| match dist {
             "linear" => HueDistribution::Linear,
@@ -190,104 +227,147 @@ pub fn parse_hue_strategies(rng: &mut impl Rng, config: &Mapping) -> Vec<HueStra
             _ => panic!("{dist} is not a valid distribution."),
         };
 
-        let iterations = strategy.get("iterations").map(|param| parse_u64_param(rng, param)).unwrap_or(1);
+        let iterations =
+            parse_property_as_u64_complex(log, rng, strategy, "iterations")?.unwrap_or(1);
+
         let mut strategies = Vec::new();
 
-        for i in 0..iterations {
+        for _ in 0..iterations {
             strategies.push(match strategy_type {
                 "neighbour" => {
-                    let size = parse_f64_param(rng, strategy.get("size").expect("[neighbour] strategy must specify a [.size]."));
-                    let n = parse_u64_param(rng, strategy.get("count").expect("[neighbour] strategy must specify a [.count]"));
-                    let dist = strategy
-                        .get("dist").expect("[neighbour] strategy must specify a [.dist]")
-                        .as_str().expect("[neighbour.dist] must be a string.");
+                    let size = parse_property_as_f64_complex(log, rng, strategy, "size")?
+                        .expect("[neighbour] strategy requires a [.size].");
+                    let n = parse_property_as_u64_complex(log, rng, strategy, "count")?
+                        .expect("[neighbour] strategy must specify a [.count]");
+                    let dist = parse_property_as_str(log, strategy, "dist")?
+                        .expect("[neighbour] strategy must be a string.");
 
-                    HueStrategy::Neighbour { size, n, dist: get_dist(dist) }
-                },
+                    HueStrategy::Neighbour {
+                        size,
+                        n,
+                        dist: get_dist(&dist),
+                    }
+                }
                 "contrast" => {
-                    let size = parse_f64_param(rng, strategy.get("size").expect("[contrast] strategy must specify a [.size]."));
-                    let n = parse_u64_param(rng, strategy.get("count").expect("[contrast] strategy must specify a [.count]"));
-                    let dist = strategy
-                        .get("dist").expect("[contrast] strategy must specify a [.dist]")
-                        .as_str().expect("[contrast.dist] must be a string.");
+                    let size = parse_property_as_f64_complex(log, rng, strategy, "size")?
+                        .expect("[contrast] strategy requires a [.size].");
+                    let n = parse_property_as_u64_complex(log, rng, strategy, "count")?
+                        .expect("[contrast] strategy must specify a [.count]");
+                    let dist = parse_property_as_str(log, strategy, "dist")?
+                        .expect("[contrast] strategy must be a string.");
 
-                    HueStrategy::Contrast { size, n, dist: get_dist(dist) }
-                },
+                    HueStrategy::Contrast {
+                        size,
+                        n,
+                        dist: get_dist(&dist),
+                    }
+                }
                 "penpal" => {
-                    let size = parse_f64_param(rng, strategy.get("size").expect("[penpal] strategy must specify a [.size]."));
-                    let n = parse_u64_param(rng, strategy.get("count").expect("[penpal] strategy must specify a [.count]"));
-                    let dist = strategy
-                        .get("dist").expect("[penpal] strategy must specify a [.dist]")
-                        .as_str().expect("[penpal.dist] must be a string.");
-                    let distance = parse_f64_param(rng, strategy.get("distance").expect("[penpal] strategy must specify a [.distance]"));
+                    let size = parse_property_as_f64_complex(log, rng, strategy, "size")?
+                        .expect("[penpal] strategy requires a [.size].");
+                    let n = parse_property_as_u64_complex(log, rng, strategy, "count")?
+                        .expect("[penpal] strategy must specify a [.count]");
+                    let dist = parse_property_as_str(log, strategy, "dist")?
+                        .expect("[penpal] strategy must be a string.");
+                    let distance = parse_property_as_f64_complex(log, rng, strategy, "distance")?
+                        .expect("[penpal] strategy requires a [.distance].");
 
-                    HueStrategy::Penpal { size, n, dist: get_dist(dist), distance }
-                },
+                    HueStrategy::Penpal {
+                        size,
+                        n,
+                        dist: get_dist(&dist),
+                        distance,
+                    }
+                }
                 "cycle" => {
-                    let n = parse_u64_param(rng, strategy.get("count").expect("[cycle] strategy must specify a [.count]"));
+                    let n = parse_property_as_u64_complex(log, rng, value, "count")?
+                        .expect("[cycle] strategy must specify a [.count]");
 
                     HueStrategy::Cycle { n }
-                },
+                }
                 _ => panic!("{strategy_type} is not a valid hue_strategy."),
             });
         }
 
-        strategies
-    }).collect()
+        hue_strategies.push(strategies);
+    }
+
+    Ok(hue_strategies.into_iter().flatten().collect())
 }
 
 pub enum ChromaStrategy {
-    Random(Range<f64>)
+    Random(Range<f64>),
 }
 
-pub fn parse_chroma_strategy(rng: &mut impl Rng, config: &Mapping) -> ChromaStrategy {
-    let chroma_strategy = config
-        .get("chroma_strategy").expect("[chroma_strategy] is required.")
-        .as_mapping().expect("[chroma_strategy] must be a mapping.");
+pub fn parse_chroma_strategy(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<ChromaStrategy> {
+    let chroma_strategy = value
+        .get("chroma-strategy")
+        .expect("[chroma_strategy] is required.")
+        .as_mapping()
+        .expect("[chroma-strategy] must be a mapping.");
 
     let strategy_name = chroma_strategy
-        .get("type").expect("[chroma_strategy.type] must be present.")
-        .as_str().expect("[chroma_strategy.type] must be a string.");
+        .get("type")
+        .expect("[chroma-strategy.type] must be present.")
+        .as_str()
+        .expect("[chroma-strategy.type] must be a string.");
 
     match strategy_name {
         "random" => {
-            let range_start = chroma_strategy.get("range_start").map(|param| parse_f64_param(rng, param)).unwrap_or(0.0);
-            let range_end = chroma_strategy.get("range_end").map(|param| parse_f64_param(rng, param)).unwrap_or(128.0);
+            let range_start =
+                parse_property_as_f64_complex(log, rng, value, "range-start")?.unwrap_or(0.0);
+            let range_end =
+                parse_property_as_f64_complex(log, rng, value, "range-end")?.unwrap_or(128.0);
 
-            ChromaStrategy::Random(range_start..range_end)
-        },
+            Ok(ChromaStrategy::Random(range_start..range_end))
+        }
         _ => panic!("{strategy_name} is not a valid chroma_strategy."),
     }
 }
 
-pub fn parse_inject(rng: &mut impl Rng, config: &Mapping) -> Option<Vec<Rgb>> {
+// figure out how the hell this works.
+pub fn parse_inject(log: Log, rng: &mut impl Rng, config: &Value) -> Option<Vec<Rgb>> {
+    log.alert("okay so. inject doesn't work too well. take a look at its code when you can.");
     config.get("inject").map(|param| {
-        let inject = param.as_mapping().expect("[palette.config.inject] must be a mapping.");
+        let inject = param
+            .as_mapping()
+            .expect("[palette.config.inject] must be a mapping.");
 
-        inject.get("colours").map(|param| {
-            let colours = param.as_sequence().expect("[palette.colours] must be a list of valid colours");
+        inject
+            .get("colours")
+            .map(|param| {
+                let colours = param
+                    .as_sequence()
+                    .expect("[palette.colours] must be a list of valid colours");
 
-            colours.iter()
-                .map(|colour| colour.as_mapping().unwrap())
-                .map(|colour| parse_colour(rng, colour))
-                .collect::<Vec<_>>()
-                .concat()
-        }).expect("if [palette.config.inject] is specified, it must have a [.colours] property.")
+                colours
+                    .iter()
+                    .map(|colour| colour.as_mapping().unwrap())
+                    .map(|colour| parse_colour(log, rng, &Value::Mapping(colour.clone())).unwrap())
+                    .collect::<Vec<_>>()
+                    .concat()
+            })
+            .expect("if [palette.config.inject] is specified, it must have a [.colours] property.")
     })
 }
 
-pub fn parse_colour(rng: &mut impl Rng, param: &Mapping) -> Vec<Srgb> {    
-    if let Some(rgb) = param.get("rgb") {
+pub fn parse_colour(log: Log, rng: &mut impl Rng, param: &Value) -> BaseResult<Vec<Srgb>> {
+    Ok(if let Some(rgb) = param.get("rgb") {
         let colour = parse_rgb(rgb);
         let gradient = if let Some(shades) = param.get("shades") {
-            let shades = shades.as_u64().expect("[palette.shades] must be a positive integer.");
+            let shades = shades
+                .as_u64()
+                .expect("[palette.shades] must be a positive integer.");
             colour.build_gradient_lch(shades as u16)
         } else {
             vec![colour]
         };
         gradient
-    } else if let Some(amnt) = param.get("random") {
-        let amnt = parse_u64_param(rng, amnt);
+    } else if let Some(amnt) = parse_property_as_u64_complex(log, rng, param, "random")? {
         let mut colours = vec![];
         for _ in 0..amnt {
             colours.push(Srgb::new(
@@ -299,8 +379,8 @@ pub fn parse_colour(rng: &mut impl Rng, param: &Mapping) -> Vec<Srgb> {
 
         colours
     } else {
-        panic!("wuh woh");
-    }
+        panic!("wtf kind colour did you come up with here????")
+    })
 }
 
 pub fn parse_rgb(value: &serde_yaml::Value) -> Srgb {
@@ -319,14 +399,27 @@ pub fn parse_rgb(value: &serde_yaml::Value) -> Srgb {
         Srgb::new(r.unwrap(), g.unwrap(), b.unwrap()).into_format()
     } else if let Some(components) = value.as_sequence() {
         if components.len() != 3 {
-            panic!("There should only be 3 RGB components. Found {}.", components.len());
+            panic!(
+                "There should only be 3 RGB components. Found {}.",
+                components.len()
+            );
         }
 
         if components.iter().all(|f| f.is_f64()) {
-            let components = components.iter().map(|c| c.as_f64().unwrap()).collect::<Vec<_>>();
-            Srgb::new(components[0] as f32, components[1] as f32, components[2] as f32)
+            let components = components
+                .iter()
+                .map(|c| c.as_f64().unwrap())
+                .collect::<Vec<_>>();
+            Srgb::new(
+                components[0] as f32,
+                components[1] as f32,
+                components[2] as f32,
+            )
         } else if components.iter().all(|f| f.is_u64()) {
-            let components = components.iter().map(|c| c.as_u64().unwrap() as u8).collect::<Vec<_>>();
+            let components = components
+                .iter()
+                .map(|c| c.as_u64().unwrap() as u8)
+                .collect::<Vec<_>>();
             Srgb::<u8>::new(components[0], components[1], components[2]).into_format()
         } else {
             panic!("uh oh components are bad");

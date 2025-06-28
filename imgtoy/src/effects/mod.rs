@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use image_effects::{
     dither::{
         error::{ErrorPropagator, WithPalette},
@@ -15,10 +17,10 @@ use image_effects::{
 };
 use palette::{named, IntoColor, Lch, Srgb};
 use rand::{seq::SliceRandom, Rng};
-use serde_yaml::Mapping;
+use serde_yaml::{Mapping, Value};
 
 use crate::{
-    logging::RunLog,
+    logging::{alt::SystemLog, RunLog},
     parsers::{
         ordered::{
             parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror,
@@ -28,10 +30,10 @@ use crate::{
             parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject,
             parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy,
         },
-        parse_f64_param, parse_u64_param,
         util::{
-            parse_property_as_f64_param, parse_property_as_f64_tuple_param,
-            parse_property_as_str_param, parse_property_as_u64_param,
+            parse_property_as_f64_complex, parse_property_as_f64_tuple_param,
+            parse_property_as_str, parse_property_as_u64_complex,
+            parse_value_as_f64_sequence_complex,
         },
     },
 };
@@ -113,8 +115,10 @@ fn generate_gradient_map(
         .collect::<Vec<_>>()
 }
 
-fn parse_effect_kind(effect: &Mapping) -> EffectKind {
+fn parse_effect_kind(effect: &Value) -> EffectKind {
     let effect = effect
+        .as_mapping()
+        .expect("whoopsies something has gone wrong")
         .keys()
         .next()
         .unwrap()
@@ -124,7 +128,7 @@ fn parse_effect_kind(effect: &Mapping) -> EffectKind {
     effect.into()
 }
 
-fn parse_effect<T>(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Box<dyn Effect<T>>
+fn parse_effect<T>(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Box<dyn Effect<T>>>
 where
     HueRotate: Effect<T>,
     Contrast: Effect<T>,
@@ -138,62 +142,90 @@ where
 {
     let kind = parse_effect_kind(effect);
 
-    match kind {
+    Ok(match kind {
         EffectKind::HueRotate => {
-            let fx = parse_hue_rotate(rng, effect);
-            log.apply_effect("hue-rotate", vec![("shift", format!("{}", fx.0))]);
-            Box::new(fx)
+            log.begin_category("hue-rotate")?;
+            let factor = parse_property_as_f64_complex(log, rng, effect, "hue-rotate")?
+                .expect("[hue-rotate] expected as an f64.");
+            log.end_category()?;
+            Box::new(HueRotate(factor as f32))
         }
         EffectKind::Contrast => {
-            let fx = parse_contrast(rng, effect);
-            log.apply_effect("contrast", vec![("factor", format!("{}", fx.0))]);
-            Box::new(fx)
+            log.begin_category("contrast")?;
+            let factor = parse_property_as_f64_complex(log, rng, effect, "contrast")?
+                .expect("[hue-rotate] expected as an f64.");
+            log.end_category()?;
+            Box::new(Contrast(factor as f32))
         }
         EffectKind::Brighten => {
-            let fx = parse_brighten(rng, effect);
-            log.apply_effect("brighten", vec![("factor", format!("{}", fx.0))]);
-            Box::new(fx)
+            log.begin_category("brighten")?;
+            let factor = parse_property_as_f64_complex(log, rng, effect, "brighten")?
+                .expect("[brighten] expected as an f64.");
+            log.end_category()?;
+            Box::new(Brighten(factor as f32))
         }
         EffectKind::Saturate => {
-            let fx = parse_saturate(rng, effect);
-            log.apply_effect("saturate", vec![("factor", format!("{}", fx.0))]);
-            Box::new(fx)
+            log.begin_category("saturate")?;
+            let factor = parse_property_as_f64_complex(log, rng, effect, "saturate")?
+                .expect("[saturate] expected as an f64.");
+            log.end_category()?;
+            Box::new(HueRotate(factor as f32))
         }
         EffectKind::MultiplyHue => {
-            let fx = parse_multiply_hue(log, rng, effect);
-            Box::new(fx)
+            log.begin_category("multiply-hue")?;
+            let factor = parse_property_as_f64_complex(log, rng, effect, "multiply-hue")?
+                .expect("[multiply-hue] expected as an f64.");
+            log.end_category()?;
+            Box::new(HueRotate(factor as f32))
         }
         EffectKind::GradientMap => {
-            let fx = parse_gradient_map(log, rng, effect);
+            log.begin_category("gradient-map")?;
+            let fx = parse_gradient_map(log, rng, effect)?;
+            log.end_category()?;
             Box::new(fx)
         }
         EffectKind::QuantizeHue => {
-            let fx = parse_quantize_hue(log, rng, effect);
+            log.begin_category("quantize-hue")?;
+            let fx = parse_quantize_hue(log, rng, effect)?;
+            log.end_category()?;
             Box::new(fx)
         }
         EffectKind::Ordered => {
-            let fx = parse_ordered(log, rng, effect);
+            log.begin_category("ordered")?;
+            let fx = parse_ordered(log, rng, effect)?;
+            log.end_category()?;
             Box::new(fx)
         }
-
         EffectKind::ErrorPropagator => {
+            log.begin_category("error-propagator")?;
+            log.alert("error propagator not currently being logged.")?;
             let fx = parse_error_propagator(
+                log,
                 rng,
                 effect,
-                effect.keys().next().unwrap().as_str().unwrap(),
-            );
+                effect
+                    .as_mapping()
+                    .expect("this effect needs to be a mapping you bastard")
+                    .keys()
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .unwrap(),
+            )?;
+            log.end_category();
             Box::new(fx)
         }
-    }
+    })
 }
 
-type Log<'a> = &'a mut RunLog;
+pub type Log<'a> = &'a mut SystemLog;
+pub type BaseResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn parse_effects<'a, 'b, T>(
     log: Log,
     rng: &mut impl Rng,
     root_value: &serde_yaml::Value,
-) -> Vec<Box<dyn Effect<T>>>
+) -> BaseResult<Vec<Box<dyn Effect<T>>>>
 where
     HueRotate: Effect<T>,
     Contrast: Effect<T>,
@@ -211,7 +243,7 @@ where
         .as_sequence()
         .expect("[effects] must be a list - wasn't.");
 
-    effects
+    Ok(effects
         .iter()
         .enumerate()
         .map(|(i, effect)| {
@@ -224,80 +256,53 @@ where
             if keys != 1 {
                 panic!("only one key [the effect name] is accepted by effect - found {keys}.");
             }
-            parse_effect::<T>(log, rng, effect)
+            parse_effect::<T>(log, rng, &Value::Mapping(effect.clone()))
+                .expect("failure when parsing effect. please check log.")
         })
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>())
 }
 
 // specific effects
 
-fn parse_hue_rotate(rng: &mut impl Rng, effect: &Mapping) -> HueRotate {
-    let param = effect.get("hue-rotate").unwrap();
-
-    let degrees = parse_f64_param(rng, param) as f32;
-    HueRotate(degrees)
+fn parse_hue_rotate(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<HueRotate> {
+    let degrees = parse_property_as_f64_complex(log, rng, effect, "degrees")?
+        .expect("expected [degrees] as f64") as f32;
+    Ok(HueRotate(degrees))
 }
 
-fn parse_contrast(rng: &mut impl Rng, effect: &Mapping) -> Contrast {
-    let param = effect.get("contrast").unwrap();
-
-    let factor = parse_f64_param(rng, param) as f32;
-    Contrast(factor)
+fn parse_contrast(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Contrast> {
+    let degrees = parse_property_as_f64_complex(log, rng, effect, "contrast")?
+        .expect("expected [contrast] as f64") as f32;
+    Ok(Contrast(degrees))
 }
 
-fn parse_brighten(rng: &mut impl Rng, effect: &Mapping) -> Brighten {
-    let param = effect.get("brighten").unwrap();
-
-    let factor = parse_f64_param(rng, param) as f32;
-    Brighten(factor)
+fn parse_brighten(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Brighten> {
+    let factor = parse_property_as_f64_complex(log, rng, effect, "brighten")?
+        .expect("expected [brighten] as f64") as f32;
+    Ok(Brighten(factor))
 }
 
-fn parse_saturate(rng: &mut impl Rng, effect: &Mapping) -> Saturate {
+fn parse_saturate(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Saturate> {
     let param = effect.get("saturate").unwrap();
 
-    let factor = parse_f64_param(rng, param) as f32;
-    Saturate(factor)
+    let factor = parse_property_as_f64_complex(log, rng, effect, "saturate")?
+        .expect("expected [saturate] as f64") as f32;
+    Ok(Saturate(factor))
 }
 
-fn parse_gradient_map(log: Log, rng: &mut impl Rng, effect: &Mapping) -> GradientMap {
+fn parse_gradient_map(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<GradientMap> {
     let param = effect.get("gradient-map").unwrap();
 
-    if let Some(mapping) = param.as_mapping() {
-        let amnt = mapping
-            .get("amnt")
-            .map(|param| parse_u64_param(rng, param))
-            .expect("If [gradient-map] is a mapping, it must have an [amnt] property.");
-
-        // TODO: Turn into a mapping that can either be "type: brightness" or "type: index".
-        let noise = mapping
-            .get("noise")
-            .map_or(0.0, |factor| parse_f64_param(rng, factor));
-
-        let noise_chance = mapping
-            .get("noise-chance")
-            .map_or(1.0, |factor| parse_f64_param(rng, factor));
-
-        let min_brightness = mapping
-            .get("min-brightness")
-            .map_or(0.0, |param| parse_f64_param(rng, param));
-
-        let max_brightness = mapping
-            .get("max-brightness")
-            .map_or(100.0, |param| parse_f64_param(rng, param));
-
-        log.apply_effect("gradient-map", vec![("noise", format!("{noise}"))]);
-        log.apply_effect(
-            "gradient-map",
-            vec![("noise-chance", format!("{noise_chance}"))],
-        );
-        log.apply_effect(
-            "gradient-map",
-            vec![("min-brightness", format!("{min_brightness}"))],
-        );
-        log.apply_effect(
-            "gradient-map",
-            vec![("max-brightness", format!("{max_brightness}"))],
-        );
+    Ok(if param.is_mapping() {
+        let amnt = parse_property_as_u64_complex(log, rng, param, "amnt")?
+            .expect("[gradient-map] as a mapping needs an [amnt] property.");
+        let noise = parse_property_as_f64_complex(log, rng, param, "noise")?.unwrap_or(0.0);
+        let noise_chance =
+            parse_property_as_f64_complex(log, rng, param, "noise-chance")?.unwrap_or(1.0);
+        let min_brightness =
+            parse_property_as_f64_complex(log, rng, param, "min-brightness")?.unwrap_or(0.0);
+        let max_brightness =
+            parse_property_as_f64_complex(log, rng, param, "max-brightness")?.unwrap_or(100.0);
 
         let generated_map = generate_gradient_map(
             rng,
@@ -308,461 +313,255 @@ fn parse_gradient_map(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Gradien
             max_brightness,
         );
 
-        return GradientMap::with_map(generated_map);
-    }
+        GradientMap::with_map(generated_map)
+    } else {
+        log.alert("too tired. don't wanna do gradient map right now. sry.");
 
-    let map = param
-        .as_sequence()
-        .expect("[gradient-map] must be a list of valid mappings (or a mapping itself).");
-    let map = map
-        .iter()
-        .map(|entry| {
-            let entry = entry
-                .as_mapping()
-                .expect("entries in [gradient-map] must be mappings.");
-            let luma = entry
-                .get("luma")
-                .expect("[gradient-map.?.luma] is required.")
-                .as_f64()
-                .expect("[gradient-map.?.luma] must be a valid positive float.")
-                as f32;
+        let map = param
+            .as_sequence()
+            .expect("[gradient-map] must be a list of valid mappings (or a mapping itself).");
+        let map = map
+            .iter()
+            .map(|entry| {
+                let entry = entry
+                    .as_mapping()
+                    .expect("entries in [gradient-map] must be mappings.");
+                let luma = entry
+                    .get("luma")
+                    .expect("[gradient-map.?.luma] is required.")
+                    .as_f64()
+                    .expect("[gradient-map.?.luma] must be a valid positive float.")
+                    as f32;
 
-            let col = entry
-                .get("colour")
-                .expect("[gradient-map.?.colour] is required.")
-                .as_mapping()
-                .expect("[gradient-map.?.colour] must be a mapping.");
+                let col = entry
+                    .get("colour")
+                    .expect("[gradient-map.?.colour] is required.")
+                    .as_mapping()
+                    .expect("[gradient-map.?.colour] must be a mapping.");
 
-            (*parse_colour(rng, col).choose(rng).unwrap(), luma)
-        })
-        .collect::<Vec<_>>();
+                // (*parse_colour(log, rng, col)?.choose(rng).unwrap(), luma)
+                panic!("seems like you tried to make a gradient map! whoops! no way! we're doing a refactor and this thing is FUCKED!");
+            })
+            .collect::<Vec<_>>();
 
-    GradientMap::with_map(map)
+        GradientMap::with_map(map)
+    })
 }
 
-fn parse_quantize_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> QuantizeHue {
+fn parse_quantize_hue(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<QuantizeHue> {
     let param = effect.get("quantize-hue").unwrap();
 
-    let hues = param
-        .as_sequence()
-        .expect("[quantize-hue] must be a list of hues/hue options.");
+    let hues = parse_value_as_f64_sequence_complex(log, rng, param, "hues")?
+        .expect("[quantize-hue.hues] must be a list of hues/hue options.");
 
-    let hues = hues
-        .iter()
-        .map(|hue| parse_f64_param(rng, hue) as f32)
-        .collect::<Vec<_>>();
+    let hues = hues.iter().map(|h| *h as f32).collect::<Vec<_>>();
 
     let hues_str = hues
         .iter()
-        .map(|h| format!("{h:.3}"))
-        .collect::<Vec<String>>();
+        .enumerate()
+        .map(|h| (h.0, format!("{:.3}", h.1)))
+        .collect::<Vec<_>>();
 
-    log.apply_effect("quantize-hue", vec![("hues", format!("{hues_str:?}"))]);
+    log.state_property("hues", format!("{hues_str:?}").as_str())?;
 
-    QuantizeHue::with_hues(hues)
+    Ok(QuantizeHue::with_hues(hues))
 }
 
-fn parse_multiply_hue(log: Log, rng: &mut impl Rng, effect: &Mapping) -> MultiplyHue {
-    let param = effect.get("multiply-hue").unwrap();
+fn parse_multiply_hue(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<MultiplyHue> {
+    let factor = parse_property_as_f64_complex(log, rng, effect, "multiply-hue")?
+        .expect("expected [multiply-hue] as a f64") as f32;
 
-    let factor = parse_f64_param(rng, param) as f32;
-
-    log.apply_effect("multiply-hue", vec![("factor", format!("{factor}"))]);
-
-    MultiplyHue(factor)
+    Ok(MultiplyHue(factor))
 }
 
-fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
+fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Ordered> {
     let config = effect.get("ordered").unwrap();
 
-    let strategy = &parse_property_as_str_param(rng, config, "strategy")
-        .expect("[ordered] requires a [strategy] to be set.");
+    let strategy = &parse_property_as_str(log, config, "strategy")?
+        .expect("[ordered] requires a [strategy] to be set as a string.");
 
-    let invert_chance = parse_property_as_f64_param(rng, config, "invert").unwrap_or(0.0);
+    let invert_chance = parse_property_as_f64_complex(log, rng, config, "invert")?.unwrap_or(0.0);
 
     let palette = config
         .get("palette")
-        .expect("[bayer] requires a [palette] to be set.");
-    let palette = parse_palette(rng, palette);
+        .expect("[strategy] requires a [palette] to be set.");
+    let palette = parse_palette(log, rng, palette)?;
 
-    let mirror_chance = if let Some((mirror_chance, mirror_sets)) =
-        config.get("mirror").map(|mirror| parse_mirror(rng, mirror))
-    {
-        Some((mirror_chance, mirror_sets))
-    } else {
-        None
-    };
+    log.begin_category("palette")?;
+    for (i, col) in palette.iter().enumerate() {
+        log.state_property(
+            format!("#{i:03}"),
+            format!("RGB: ({:3.3},{:3.3},{:3.3})", col.red, col.green, col.blue),
+        )?;
+    }
+    log.end_category()?;
 
-    let invert_chance = rng.gen_range(0.0..1.0);
+    let mirror = config.get("mirror").map(|mirror| {
+        log.begin_category("mirror").expect("fucked up when beginning the mirror category for some reason");
+        let mirror = parse_mirror(log, rng, mirror).expect("okay yeah if you see this, something fucked up in the mirrors. good luck. just look for the code [X93HC] and you'll find this in the source code.");
+        log.end_category().expect("fucked up when ending the category for some reason");
+        mirror
+    });
 
-    let (mut strategy, (param, mut parameters)) = match strategy.as_str() {
+    log.begin_category(strategy)?;
+    let mut strategy = match strategy.as_str() {
         "bayer" => {
-            let size = parse_matrix_size(rng, config, strategy) as usize;
+            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                Bayer(size),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{size}")),
-                        ("invert", format!("{invert_chance}")),
-                    ],
-                ),
-            )
+            Bayer(size)
         }
         "diamonds" => {
-            let size = parse_matrix_size(rng, config, strategy) as usize;
-            (
-                Diamonds(size),
-                ((
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{size}")),
-                    ],
-                )),
-            )
+            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
+            Diamonds(size)
         }
         "checkered-diamonds" => {
-            let size = parse_matrix_size(rng, config, strategy) as usize;
-            (
-                CheckeredDiamonds(size),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{size}")),
-                    ],
-                ),
-            )
+            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
+            CheckeredDiamonds(size)
         }
-        "stars" => (
-            Stars,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "new-stars" => (
-            NewStars,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "grid" => (
-            Grid,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "trail" => (
-            Trail,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "criss-cross" => (
-            Crisscross,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "static" => (
-            Static,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
+        "stars" => Stars,
+        "new-stars" => NewStars,
+        "grid" => Grid,
+        "trail" => Trail,
+        "criss-cross" => Crisscross,
+        "static" => Static,
         "wavy" => {
-            let orientation = parse_orientation(rng, config, strategy);
+            let orientation = parse_orientation(log, rng, config, strategy)?;
             let o_str = match &orientation {
                 Orientation::Horizontal => "horizontal",
                 Orientation::Vertical => "vertical",
             };
-            (
-                Wavy(orientation),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("orientation", o_str.to_string()),
-                    ],
-                ),
-            )
+            Wavy(orientation)
         }
-        "bootleg-bayer" => (
-            BootlegBayer,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "diagonals" => (
-            Diagonals,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "diagonals-big" => (
-            DiagonalsBig,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "diamond-grid" => (
-            DiamondGrid,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "speckle-squares" => (
-            SpeckleSquares,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "scales" => (
-            Scales,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
-        "trail-scales" => (
-            TrailScales,
-            ("ordered.strategy", vec![("name", strategy.to_string())]),
-        ),
+        "bootleg-bayer" => BootlegBayer,
+        "diagonals" => Diagonals,
+        "diagonals-big" => DiagonalsBig,
+        "diamond-grid" => DiamondGrid,
+        "speckle-squares" => SpeckleSquares,
+        "scales" => Scales,
+        "trail-scales" => TrailScales,
         "diagonals-n" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
-            let direction = parse_diagonaldirection(rng, config, strategy);
-            let increase = parse_increase_strategy(rng, config, strategy);
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+            let direction = parse_diagonaldirection(log, rng, config, strategy)?;
+            let increase = parse_increase_strategy(log, rng, config, strategy)?;
 
-            (
-                DiagonalsN {
-                    n,
-                    direction: direction.clone(),
-                    increase: increase.clone(),
-                },
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        (
-                            "direction",
-                            match direction {
-                                DiagonalDirection::DownRight => "down-right".to_string(),
-                                DiagonalDirection::UpRight => "up-right".to_string(),
-                            },
-                        ),
-                        (
-                            "increase",
-                            match increase {
-                                Increase::Linear(factor) => format!("linear ({factor})"),
-                                Increase::Exponential(factor) => format!("exponential ({factor})"),
-                            },
-                        ),
-                    ],
-                ),
-            )
+            DiagonalsN {
+                n,
+                direction: direction.clone(),
+                increase: increase.clone(),
+            }
         }
         "diagonal-tiles" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                DiagonalTiles(n),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                    ],
-                ),
-            )
+            DiagonalTiles(n)
         }
         "bouncing-bowtie" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                BouncingBowtie(n),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                    ],
-                ),
-            )
+            BouncingBowtie(n)
         }
         "scanline" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
-            let orientation = parse_orientation(rng, config, strategy);
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+            let orientation = parse_orientation(log, rng, config, strategy);
 
-            (
-                ScanLine(n, orientation.clone()),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                        (
-                            "orientation",
-                            match orientation {
-                                Orientation::Horizontal => "horizontal".to_string(),
-                                Orientation::Vertical => "vertical".to_string(),
-                            },
-                        ),
-                    ],
-                ),
-            )
+            ScanLine(n, orientation?.clone())
         }
         "starburst" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                Starburst(n),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                    ],
-                ),
-            )
+            Starburst(n)
         }
         "shiny-bowtie" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                ShinyBowtie(n),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                    ],
-                ),
-            )
+            ShinyBowtie(n)
         }
         "marble-tile" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                MarbleTile(n),
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                    ],
-                ),
-            )
+            MarbleTile(n)
         }
         "curve-path" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
-            let amplitude = parse_property_as_f64_param(rng, config, "amplitude").unwrap_or(1.0);
-            let promotion = parse_property_as_f64_param(rng, config, "promotion").unwrap_or(0.0);
-            let halt_threshold =
-                parse_property_as_u64_param(rng, config, "halt-threshold").unwrap_or(100) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+            let amplitude =
+                parse_property_as_f64_complex(log, rng, config, "amplitude")?.unwrap_or(1.0);
+            let promotion =
+                parse_property_as_f64_complex(log, rng, config, "promotion")?.unwrap_or(0.0);
+            let halt_threshold = parse_property_as_u64_complex(log, rng, config, "halt-threshold")?
+                .unwrap_or(100) as usize;
 
-            (
-                CurvePath {
-                    n,
-                    amplitude,
-                    promotion,
-                    halt_threshold,
-                },
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                        ("amplitude", format!("{amplitude}")),
-                        ("promotion", format!("{promotion}")),
-                        ("halt-threshold", format!("{halt_threshold}")),
-                    ],
-                ),
-            )
+            CurvePath {
+                n,
+                amplitude,
+                promotion,
+                halt_threshold,
+            }
         }
         "zigzag" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
-            let halt_threshold =
-                parse_property_as_u64_param(rng, config, "halt-threshold").unwrap_or(100) as usize;
-            let wrapping = parse_wrapping_set(rng, config).choose(rng).unwrap().clone();
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+            let halt_threshold = parse_property_as_u64_complex(log, rng, config, "halt-threshold")?
+                .unwrap_or(100) as usize;
+            let wrapping = parse_wrapping_set(log, rng, config)?
+                .choose(rng)
+                .unwrap()
+                .clone();
 
-            let magnitude = parse_property_as_f64_tuple_param(rng, config, "magnitude", ("y", "x"));
-            let promotion = parse_property_as_f64_tuple_param(rng, config, "promotion", ("y", "x"));
+            let magnitude =
+                parse_property_as_f64_tuple_param(log, rng, config, "magnitude", ("y", "x"))?;
+            let promotion =
+                parse_property_as_f64_tuple_param(log, rng, config, "promotion", ("y", "x"))?;
 
             let magnitude = (magnitude.0.unwrap_or(1.0), magnitude.1.unwrap_or(1.0));
             let promotion = (promotion.0.unwrap_or(0.0), promotion.1.unwrap_or(0.0));
 
-            (
-                ZigZag {
-                    n,
-                    halt_threshold,
-                    wrapping: wrapping.clone(),
-                    magnitude,
-                    promotion,
-                },
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                        ("magnitude", format!("{magnitude:?}")),
-                        ("promotion", format!("{promotion:?}")),
-                        (
-                            "wrapping",
-                            match wrapping {
-                                Wrapping::None => "none".to_string(),
-                                Wrapping::All => "all".to_string(),
-                                Wrapping::Vertical => "vertical".to_string(),
-                                Wrapping::Horizontal => "horizontal".to_string(),
-                            },
-                        ),
-                        ("halt-threshold", format!("{halt_threshold}")),
-                    ],
-                ),
-            )
+            ZigZag {
+                n,
+                halt_threshold,
+                wrapping: wrapping.clone(),
+                magnitude,
+                promotion,
+            }
         }
         "broken-spiral" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
-            let halt_threshold =
-                parse_property_as_u64_param(rng, config, "halt-threshold").unwrap_or(100) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            let base_step = parse_property_as_f64_tuple_param(rng, config, "base-step", ("y", "x"));
+            let base_step =
+                parse_property_as_f64_tuple_param(log, rng, config, "base-step", ("y", "x"))?;
             let base_step = (base_step.0.unwrap_or(1.0), base_step.1.unwrap_or(1.0));
 
-            let oob_threshold = parse_property_as_u64_param(rng, config, "oob-threshold")
+            let oob_threshold = parse_property_as_u64_complex(log, rng, config, "oob-threshold")?
                 .unwrap_or((n as f64 / (base_step.0.min(base_step.1))) as u64)
                 as usize;
             let increment_by =
-                parse_property_as_f64_param(rng, config, "increment-by").unwrap_or(0.0);
-            let increment_in =
-                parse_property_as_u64_param(rng, config, "increment-in").unwrap_or(1) as usize;
+                parse_property_as_f64_complex(log, rng, config, "increment-by")?.unwrap_or(0.0);
+            let increment_in = parse_property_as_u64_complex(log, rng, config, "increment-in")?
+                .unwrap_or(1) as usize;
 
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
 
-            (
-                BrokenSpiral {
-                    n,
-                    base_step,
-                    oob_threshold,
-                    increment_by,
-                    increment_in,
-                },
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                        ("base-step", format!("{base_step:?}")),
-                        ("oob-threshold", format!("{oob_threshold}")),
-                        ("increment-by", format!("{increment_by}")),
-                        ("increment-in", format!("{increment_in}")),
-                    ],
-                ),
-            )
+            BrokenSpiral {
+                n,
+                base_step,
+                oob_threshold,
+                increment_by,
+                increment_in,
+            }
         }
         "modulo-snake" => {
-            let n = parse_matrix_size(rng, config, strategy) as usize;
+            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
             let increment_by =
-                parse_property_as_f64_param(rng, config, "increment-by").unwrap_or(1.0);
-            let modulo = parse_property_as_u64_param(rng, config, "modulo").unwrap_or(10) as usize;
-            let iterations =
-                parse_property_as_u64_param(rng, config, "iterations").unwrap_or(1) as usize;
+                parse_property_as_f64_complex(log, rng, config, "increment-by")?.unwrap_or(1.0);
+            let modulo =
+                parse_property_as_u64_complex(log, rng, config, "modulo")?.unwrap_or(10) as usize;
+            let iterations = parse_property_as_u64_complex(log, rng, config, "iterations")?
+                .unwrap_or(1) as usize;
 
-            (
-                ModuloSnake {
-                    n,
-                    increment_by,
-                    modulo,
-                    iterations,
-                },
-                (
-                    "ordered.strategy",
-                    vec![
-                        ("name", strategy.to_string()),
-                        ("matrix-size", format!("{n}")),
-                        ("increment-by", format!("{increment_by}")),
-                        ("modulo", format!("{modulo}")),
-                        ("iterations", format!("{iterations}")),
-                    ],
-                ),
-            )
+            ModuloSnake {
+                n,
+                increment_by,
+                modulo,
+                iterations,
+            }
         }
         _ => {
             let strategies = vec![
@@ -797,41 +596,31 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Mapping) -> Ordered {
             panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }
     };
+    log.end_category()?;
 
-    if mirror_chance.is_some() {
-        let (chance, mirror_sets) = mirror_chance.unwrap();
+    if let Some((chance, mirror_sets)) = mirror {
         if rng.gen_range(0.0..1.0) <= chance {
             for mirrorline in mirror_sets {
-                parameters.push((
-                    "mirror",
-                    match mirrorline {
-                        MirrorLine::Upright(flip) => format!("upright [flip={}]", flip.0),
-                        MirrorLine::Downright(flip) => format!("downright [flip={}]", flip.0),
-                        MirrorLine::Horizontal(flip) => format!("horizontal [flip={}]", flip.0),
-                        MirrorLine::Vertical(flip) => format!("vertical [flip={}]", flip.0),
-                    },
-                ));
                 strategy = strategy.mirror(mirrorline);
             }
         };
     }
+
     strategy = if rng.gen_range(0.0..1.0) <= invert_chance {
-        parameters.push(("invert", "true".to_string()));
         strategy.invert()
     } else {
         strategy
     };
 
-    log.apply_effect("ordered.strategy", parameters);
-
-    Ordered::new(palette, strategy)
+    Ok(Ordered::new(palette, strategy))
 }
 
 fn parse_error_propagator<'a, 'b>(
+    log: Log,
     rng: &mut impl Rng,
-    effect: &Mapping,
+    effect: &Value,
     algorithm_name: &str,
-) -> ErrorPropagator<'a, 'b, WithPalette> {
+) -> BaseResult<ErrorPropagator<'a, 'b, WithPalette>> {
     let config = effect.get(algorithm_name).unwrap();
 
     let propagator = match algorithm_name.to_lowercase().as_str() {
@@ -850,22 +639,24 @@ fn parse_error_propagator<'a, 'b>(
         .get("palette")
         .unwrap_or_else(|| panic!("[{algorithm_name}] requires a [palette] to be set."));
 
-    let palette = parse_palette(rng, palette);
+    let palette = parse_palette(log, rng, palette)?;
 
-    propagator.with_palette(palette)
+    Ok(propagator.with_palette(palette))
 }
 
 // parse common blocks
 
-fn parse_palette(rng: &mut impl Rng, param: &serde_yaml::Value) -> Vec<Srgb> {
-    if let Some(palette) = param.as_mapping() {
+fn parse_palette(log: Log, rng: &mut impl Rng, param: &serde_yaml::Value) -> BaseResult<Vec<Srgb>> {
+    log.pause();
+    log.alert("PARSE PALETTE is unsupported for now")?;
+    let palette = if let Some(palette) = param.as_mapping() {
         let palette_type = palette
             .get("type")
             .expect("[palette] requires a [.type] to be specified.")
             .as_str()
             .expect("[palette.type] must be a string.");
 
-        match palette_type {
+        Ok(match palette_type {
             "random_v1" => generate_random_palette(rng),
             "specified" => {
                 let colours = palette
@@ -878,27 +669,26 @@ fn parse_palette(rng: &mut impl Rng, param: &serde_yaml::Value) -> Vec<Srgb> {
 
                 colours
                     .iter()
-                    .map(|colour| colour.as_mapping().unwrap())
-                    .map(|colour| parse_colour(rng, colour))
+                    .map(|colour| parse_colour(log, rng, colour).expect("yeah i mean you used a specified palette and the colours are fucked up in some way. what can i say. im tired. ive been at this for hours now."))
                     .collect::<Vec<_>>()
                     .concat()
             }
             "random_v2" => {
-                let config = palette
-                    .get("config")
-                    .expect("if [palette.type] is \"random_v2\", [palette.config] must be present.")
-                    .as_mapping()
-                    .expect("[palette.config] must be a mapping with valid options.");
+                let config = palette.get("config").expect(
+                    "if [palette.type] is \"random_v2\", [palette.config] must be present.",
+                );
 
-                generate_random_palette_v2(rng, config)
+                generate_random_palette_v2(log, rng, config)?
             }
             _ => {
                 panic!("{palette_type} is not a valid palette type.");
             }
-        }
+        })
     } else {
         panic!("wuh woh");
-    }
+    };
+    log.unpause();
+    palette
 }
 
 fn generate_random_palette(mut rng: &mut impl Rng) -> Vec<Srgb> {
@@ -937,24 +727,29 @@ fn generate_random_palette(mut rng: &mut impl Rng) -> Vec<Srgb> {
     palette
 }
 
-fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb> {
-    let max_lum = config
-        .get("max_lum")
-        .map_or(100.0, |param| parse_f64_param(rng, param));
+fn generate_random_palette_v2(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<Vec<Srgb>> {
+    let max_lum = parse_property_as_f64_complex(log, rng, value, "max-lum")?.unwrap_or(100.0);
+    let min_lum = parse_property_as_f64_complex(log, rng, value, "min-lum")?.unwrap_or(0.0);
 
-    let min_lum = config
-        .get("min_lum")
-        .map_or(0.0, |param| parse_f64_param(rng, param));
+    log.begin_category("lum-strategy")?;
+    let (lum_strategy, lum_amnt) = parse_lum_strategy(log, rng, value)?;
+    log.end_category()?;
 
-    let (lum_strategy, lum_amnt) = parse_lum_strategy(rng, config);
+    let inject = parse_inject(log, rng, value);
 
-    let inject = parse_inject(rng, config);
+    log.begin_category("hue-strategies")?;
+    let hue_strategies = parse_hue_strategies(log, rng, value)?;
+    log.end_category()?;
 
-    let hue_strategies = parse_hue_strategies(rng, config);
+    log.begin_category("chroma-strategy")?;
+    let chroma_strategy = parse_chroma_strategy(log, rng, value)?;
+    log.end_category()?;
 
-    let chroma_strategy = parse_chroma_strategy(rng, config);
-
-    let misc_flags = config.get("misc_flags").map(|param| {
+    let misc_flags = value.get("misc_flags").map(|param| {
         param
             .as_sequence()
             .expect("[palette.config.misc_flags] must be a list")
@@ -967,15 +762,11 @@ fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb>
             .collect::<Vec<&str>>()
     });
 
-    let mut flag_grayscale = false;
     let mut flag_lum_safeguard = false;
     let mut flag_extremes = false;
     let mut flag_single_lum = false;
 
     if let Some(flags) = misc_flags {
-        if flags.contains(&"grayscale") {
-            flag_grayscale = true
-        }
         if flags.contains(&"lum_safeguard") {
             flag_lum_safeguard = true
         }
@@ -1021,8 +812,10 @@ fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb>
                 hues = [hues, generate_hue_neighbourhood(seed_hue, *size, *n, dist)].concat()
             }
             HueStrategy::Contrast { size, n, dist } => {
-                hues = [hues,
-                    generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist)]
+                hues = [
+                    hues,
+                    generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist),
+                ]
                 .concat()
             }
             HueStrategy::Penpal {
@@ -1031,8 +824,10 @@ fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb>
                 dist,
                 distance,
             } => {
-                hues = [hues,
-                    generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist)]
+                hues = [
+                    hues,
+                    generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist),
+                ]
                 .concat()
             }
             HueStrategy::Cycle { n } => {
@@ -1059,7 +854,7 @@ fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb>
                     };
                 }
             }
-            LumStrategy::Random { unified } => {
+            LumStrategy::Random { unified: _ } => {
                 for _ in 0..lum_amnt {
                     palette.push(Lch::new(
                         rng.gen_range(0.0..100.0),
@@ -1154,8 +949,8 @@ fn generate_random_palette_v2(rng: &mut impl Rng, config: &Mapping) -> Vec<Srgb>
         palette = [palette, lch_colours].concat();
     }
 
-    palette
+    Ok(palette
         .into_iter()
         .map(|color| color.into_color())
-        .collect()
+        .collect())
 }
