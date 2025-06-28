@@ -138,6 +138,22 @@ pub fn parse_property_as_u64_complex(
     Ok(u)
 }
 
+pub fn parse_property_as_i64(
+    log: Log,
+    value: &Value,
+    property_name: &str,
+    default: Option<i64>,
+) -> BaseResult<Option<i64>> {
+    let u = value
+        .get(property_name)
+        .map(|prop| prop.as_i64())
+        .unwrap_or(default);
+
+    log.state_property(property_name, format!("{u:?}"))?;
+
+    Ok(u)
+}
+
 pub fn parse_property_as_f64(
     log: Log,
     value: &Value,

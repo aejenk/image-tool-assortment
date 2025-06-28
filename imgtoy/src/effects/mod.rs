@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{cell::RefCell, error::Error, rc::Rc};
 
 use image_effects::{
     dither::{
@@ -218,6 +218,8 @@ where
     })
 }
 
+pub type SLog = Shared<SystemLog>;
+pub type Shared<T> = Rc<RefCell<T>>;
 pub type Log<'a> = &'a mut SystemLog;
 pub type BaseResult<T> = Result<T, Box<dyn Error>>;
 
