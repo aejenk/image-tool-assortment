@@ -100,6 +100,7 @@ fn generate_random_palette_v2(
     let mut flag_lum_safeguard = false;
     let mut flag_extremes = false;
     let mut flag_single_lum = false;
+    let mut flag_grayscale = false;
 
     if let Some(flags) = misc_flags {
         if flags.contains(&"lum_safeguard") {
@@ -110,6 +111,9 @@ fn generate_random_palette_v2(
         }
         if flags.contains(&"single_lum") {
             flag_single_lum = true
+        }
+        if flags.contains(&"grayscale") {
+            flag_grayscale = true
         }
     };
 
@@ -258,9 +262,13 @@ fn generate_random_palette_v2(
 
     match chroma_strategy {
         ChromaStrategy::Random(range) => {
-            palette
-                .iter_mut()
-                .for_each(|col| col.chroma = rng.gen_range(range.clone()) as f32);
+            palette.iter_mut().for_each(|col| {
+                if flag_grayscale {
+                    col.chroma = 0.0;
+                } else {
+                    col.chroma = rng.gen_range(range.clone()) as f32;
+                }
+            });
         }
     }
 

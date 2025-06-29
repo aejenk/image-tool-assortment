@@ -135,9 +135,18 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<
 
     log.begin_category("palette")?;
     for (i, col) in palette.iter().enumerate() {
+        let (red, green, blue) = (col.red * 255., col.green * 255., col.blue * 255.);
+
+        let hexcode = {
+            format!(
+                "#{:02x}{:02x}{:02x}",
+                red as usize, green as usize, blue as usize
+            )
+        };
+
         log.state_property(
             format!("#{i:03}"),
-            format!("RGB: ({:3.3},{:3.3},{:3.3})", col.red, col.green, col.blue),
+            format!("RGB: ({hexcode}) -> ({red:.2},{green:.2},{blue:.2})"),
         )?;
     }
     log.end_category()?;
@@ -156,9 +165,7 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<
 
     log.begin_category("strategies")?;
 
-    let strategies = parse_strategies(log, rng, value)?;
-
-    let mut strategy = strategies.choose(rng).unwrap().clone();
+    let mut strategy = parse_random_strategy(log, rng, value)?;
 
     log.end_category()?;
 
@@ -213,6 +220,35 @@ pub fn parse_ordered_kind(log: Log, value: &Value) -> BaseResult<OrderedKind> {
         .as_str()
         .expect("strategy must have an ordered type as its name")
         .into())
+}
+
+pub fn parse_random_strategy(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<OrderedStrategy> {
+    let strategy = value
+        .get("strategies")
+        .expect("[strategies] was not present - is required.")
+        .as_sequence()
+        .expect("[strategies] must be a list - wasn't.")
+        .choose(rng)
+        .unwrap()
+        .as_mapping()
+        .unwrap();
+
+    let keys = strategy.keys().len();
+    if keys != 1 {
+        panic!("only one key [the strategy name] is accepted by ordered - found {keys}");
+    }
+
+    Ok(parse_strategy(
+        log,
+        rng,
+        &Value::Mapping(strategy.clone()),
+        strategy.keys().next().unwrap().as_str().expect("what????"),
+    )
+    .expect("failure when parsing strategy. please check log."))
 }
 
 pub fn parse_strategies(
