@@ -60,7 +60,6 @@ impl SystemLog {
     pub fn header(&mut self, string: impl Display) -> WriteResult {
         self.debug_log("header", format!("{string}"))?;
         writeln!(self.log, "[ {string:=^50} ]")?;
-        writeln!(self.log, "[ {string:=^20} ]")?;
         Ok(self)
     }
 

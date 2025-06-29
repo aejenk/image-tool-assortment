@@ -3,10 +3,7 @@ use std::{cell::RefCell, error::Error, rc::Rc};
 use image_effects::{
     dither::{
         error::{ErrorPropagator, WithPalette},
-        ordered::{
-            algorithms::Wrapping, DiagonalDirection, Increase, MirrorLine, Ordered,
-            OrderedStrategy::*, Orientation,
-        },
+        ordered::{algorithms::properties::Orientation, Ordered, OrderedStrategy::*},
         ATKINSON, BURKES, FLOYD_STEINBERG, JARVIS_JUDICE_NINKE, SIERRA, SIERRA_LITE,
         SIERRA_TWO_ROW, STUCKI,
     },
@@ -22,14 +19,21 @@ use serde_yaml::{Mapping, Value};
 use crate::{
     logging::{alt::SystemLog, RunLog},
     parsers::{
-        ordered::{
-            parse_diagonaldirection, parse_increase_strategy, parse_matrix_size, parse_mirror,
-            parse_orientation, parse_wrapping_set,
+        modifiers::{
+            checker::parse_checker,
+            diagonal_direction::parse_diagonaldirection,
+            increase_strategy::parse_increase_strategy,
+            mirror::parse_mirror,
+            orientation::parse_orientation,
+            rotation::parse_rotation,
+            simple::{parse_blur, parse_exponentiate},
+            wrapping::parse_wrapping_set,
         },
         palette::{
             parse_chroma_strategy, parse_colour, parse_hue_strategies, parse_inject,
             parse_lum_strategy, ChromaStrategy, HueDistribution, HueStrategy, LumStrategy,
         },
+        properties::parse_matrix_size,
         util::{
             parse_property_as_f64_complex, parse_property_as_f64_tuple_param,
             parse_property_as_str, parse_property_as_u64_complex,
@@ -405,6 +409,11 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Ord
         mirror
     });
 
+    let blur = parse_blur(log, rng, config)?;
+    let exponentiate = parse_exponentiate(log, rng, config)?;
+    let rotate = parse_rotation(log, rng, config)?;
+    let checker = parse_checker(log, rng, config)?;
+
     log.begin_category(strategy)?;
     let mut strategy = match strategy.as_str() {
         "bayer" => {
@@ -428,10 +437,6 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Ord
         "static" => Static,
         "wavy" => {
             let orientation = parse_orientation(log, rng, config, strategy)?;
-            let o_str = match &orientation {
-                Orientation::Horizontal => "horizontal",
-                Orientation::Vertical => "vertical",
-            };
             Wavy(orientation)
         }
         "bootleg-bayer" => BootlegBayer,
@@ -607,6 +612,30 @@ fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Ord
             }
         };
     }
+
+    strategy = if let Some(blur) = blur {
+        strategy.blur(blur as usize)
+    } else {
+        strategy
+    };
+
+    strategy = if let Some(exponentiate) = exponentiate {
+        strategy.exponentiate(exponentiate)
+    } else {
+        strategy
+    };
+
+    strategy = if let Some(rotate) = rotate {
+        strategy.rotate(rotate)
+    } else {
+        strategy
+    };
+
+    strategy = if let Some(checker) = checker {
+        strategy.checker(checker)
+    } else {
+        strategy
+    };
 
     strategy = if rng.gen_range(0.0..1.0) <= invert_chance {
         strategy.invert()

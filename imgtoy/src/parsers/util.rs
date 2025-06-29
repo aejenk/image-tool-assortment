@@ -230,6 +230,25 @@ pub fn parse_property_as_str(
     Ok(s)
 }
 
+pub fn parse_property_as_u64_tuple_param(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+    property_name: &str,
+    subprop_names: (&str, &str),
+) -> BaseResult<(Option<u64>, Option<u64>)> {
+    log.begin_category(property_name)?;
+    let mapping = parse_property_as_mapping(value, property_name)
+        .unwrap_or_else(|| panic!("[{property_name}] must be a mapping"));
+    let mapping = Value::Mapping(mapping);
+
+    let prop1 = parse_property_as_u64_complex(log, rng, &mapping, subprop_names.0)?;
+    let prop2 = parse_property_as_u64_complex(log, rng, &mapping, subprop_names.1)?.or(prop1);
+    log.end_category();
+
+    Ok((prop1, prop2))
+}
+
 pub fn parse_property_as_f64_tuple_param(
     log: Log,
     rng: &mut impl Rng,

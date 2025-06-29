@@ -1138,7 +1138,7 @@ dependencies = [
 [[package]]
 name = "image-effects"
 version = "0.2.0"
-source = "git+https://github.com/aejenk/image-effects?branch=databend#e7e88adcd29a389b8e9f275ee9865f123ccef97f"
+source = "git+https://github.com/aejenk/image-effects?branch=databend#ec67adab163903ee911bfda32a43d96ebb04288a"
 dependencies = [
  "image",
  "ndarray",
