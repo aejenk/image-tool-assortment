@@ -1,3 +1,4 @@
+use image_effects::dither::ordered::tools::exponentiate;
 use rand::Rng;
 use serde_yaml::Value;
 
@@ -10,8 +11,13 @@ use crate::{
 };
 // with props
 pub fn parse_blur(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<Option<u64>> {
+    let blur = value.get("blur");
+    if blur.is_none() {
+        return Ok(None);
+    }
+    let blur = blur.unwrap();
+
     log.begin_category("blur")?;
-    let blur = value.get("blur").expect("expected [blur]");
     let enabled = process_chance(log, rng, blur)?;
     let factor = Ok(if enabled {
         Some(parse_u64_factor(log, rng, blur)?)
@@ -23,8 +29,13 @@ pub fn parse_blur(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<Opt
 }
 
 pub fn parse_exponentiate(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<Option<f64>> {
+    let exponentiate = value.get("exponentiate");
+    if exponentiate.is_none() {
+        return Ok(None);
+    }
+    let exponentiate = exponentiate.unwrap();
+
     log.begin_category("exponentiate")?;
-    let exponentiate = value.get("exponentiate").expect("expected [exponentiate]");
     let enabled = process_chance(log, rng, exponentiate)?;
     let factor = Ok(if enabled {
         Some(parse_f64_factor(log, rng, exponentiate)?)

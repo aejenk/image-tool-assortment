@@ -8,9 +8,13 @@ use crate::{
 };
 
 pub fn parse_rotation(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<Option<Rotation>> {
-    log.begin_category("rotation")?;
+    let rotation = value.get("rotation");
+    if rotation.is_none() {
+        return Ok(None);
+    }
+    let rotation = rotation.unwrap();
 
-    let rotation = value.get("rotation").expect("expected [rotation]");
+    log.begin_category("rotation")?;
     let enabled = process_chance(log, rng, rotation)?;
 
     let result = Ok(if enabled {

@@ -8,8 +8,8 @@ use crate::{
         modifiers::simple::parse_u64_factor,
         properties::process_chance,
         util::{
-            parse_property_as_f64, parse_property_as_str,
-            parse_property_as_u64_complex, parse_property_as_u64_tuple_param,
+            parse_property_as_f64, parse_property_as_str, parse_property_as_u64_complex,
+            parse_property_as_u64_tuple_param,
         },
     },
 };
@@ -52,8 +52,13 @@ pub fn parse_checker(
     rng: &mut impl Rng,
     value: &Value,
 ) -> BaseResult<Option<CheckerType>> {
+    let checker = value.get("checker");
+    if checker.is_none() {
+        return Ok(None);
+    }
+    let checker = checker.unwrap();
+
     log.begin_category("checker")?;
-    let checker = value.get("checker").expect("expected [checker]");
 
     let enabled = process_chance(log, rng, checker)?;
 
