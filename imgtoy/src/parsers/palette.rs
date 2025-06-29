@@ -1,8 +1,8 @@
 use std::ops::Range;
 
 use image_effects::prelude::IntoGradientLch;
-use palette::{rgb::Rgb, Srgb};
-use rand::Rng;
+use palette::{named, rgb::Rgb, IntoColor, Lch, Srgb};
+use rand::{seq::SliceRandom, Rng};
 use serde_yaml::{Mapping, Value};
 
 use crate::{
@@ -12,6 +12,283 @@ use crate::{
         parse_value_as_f64_sequence_complex,
     },
 };
+
+pub fn parse_palette(
+    log: Log,
+    rng: &mut impl Rng,
+    param: &serde_yaml::Value,
+) -> BaseResult<Vec<Srgb>> {
+    log.pause();
+    log.alert("PARSE PALETTE is unsupported for now")?;
+    let palette = if let Some(palette) = param.as_mapping() {
+        let palette_type = palette
+            .get("type")
+            .expect("[palette] requires a [.type] to be specified.")
+            .as_str()
+            .expect("[palette.type] must be a string.");
+
+        Ok(match palette_type {
+            "random_v1" => generate_random_palette(rng),
+            "specified" => {
+                let colours = palette
+                    .get("colours")
+                    .expect(
+                        "if [palette.type] is \"specified\", [palette.colours] must be present.",
+                    )
+                    .as_sequence()
+                    .expect("[palette.colours] must be a list of valid colours");
+
+                colours
+                    .iter()
+                    .map(|colour| parse_colour(log, rng, colour).expect("yeah i mean you used a specified palette and the colours are fucked up in some way. what can i say. im tired. ive been at this for hours now."))
+                    .collect::<Vec<_>>()
+                    .concat()
+            }
+            "random_v2" => {
+                let config = palette.get("config").expect(
+                    "if [palette.type] is \"random_v2\", [palette.config] must be present.",
+                );
+
+                generate_random_palette_v2(log, rng, config)?
+            }
+            _ => {
+                panic!("{palette_type} is not a valid palette type.");
+            }
+        })
+    } else {
+        panic!("wuh woh");
+    };
+    log.unpause();
+    palette
+}
+
+fn generate_random_palette_v2(
+    log: Log,
+    rng: &mut impl Rng,
+    value: &Value,
+) -> BaseResult<Vec<Srgb>> {
+    let max_lum = parse_property_as_f64_complex(log, rng, value, "max-lum")?.unwrap_or(100.0);
+    let min_lum = parse_property_as_f64_complex(log, rng, value, "min-lum")?.unwrap_or(0.0);
+
+    log.begin_category("lum-strategy")?;
+    let (lum_strategy, lum_amnt) = parse_lum_strategy(log, rng, value)?;
+    log.end_category()?;
+
+    let inject = parse_inject(log, rng, value);
+
+    log.begin_category("hue-strategies")?;
+    let hue_strategies = parse_hue_strategies(log, rng, value)?;
+    log.end_category()?;
+
+    log.begin_category("chroma-strategy")?;
+    let chroma_strategy = parse_chroma_strategy(log, rng, value)?;
+    log.end_category()?;
+
+    let misc_flags = value.get("misc_flags").map(|param| {
+        param
+            .as_sequence()
+            .expect("[palette.config.misc_flags] must be a list")
+            .iter()
+            .map(|param| {
+                param
+                    .as_str()
+                    .expect("[palette.config.misc_flags] must be a list of strings.")
+            })
+            .collect::<Vec<&str>>()
+    });
+
+    let mut flag_lum_safeguard = false;
+    let mut flag_extremes = false;
+    let mut flag_single_lum = false;
+
+    if let Some(flags) = misc_flags {
+        if flags.contains(&"lum_safeguard") {
+            flag_lum_safeguard = true
+        }
+        if flags.contains(&"extremes") {
+            flag_extremes = true
+        }
+        if flags.contains(&"single_lum") {
+            flag_single_lum = true
+        }
+    };
+
+    let mut palette: Vec<Lch> = Vec::new();
+
+    let seed_hue = rng.gen_range(0.0..360.0);
+    let mut hues = vec![seed_hue];
+
+    // fn for common hue calculation
+    let mut generate_hue_neighbourhood = |hue: f64, size: f64, n: u64, dist: &HueDistribution| {
+        let mut neighbourhood = Vec::new();
+
+        let lower_end = hue - size;
+        let upper_end = hue + size;
+
+        for i in 0..n {
+            match dist {
+                HueDistribution::Linear => {
+                    let fraction = (i as f64) / ((n - 1) as f64);
+                    neighbourhood.push(lower_end + (size * 2.0 * fraction));
+                }
+                HueDistribution::Random => {
+                    neighbourhood.push(rng.gen_range(lower_end..upper_end));
+                }
+            }
+        }
+
+        neighbourhood
+    };
+
+    // hue strategy application
+    for strategy in hue_strategies.iter() {
+        match strategy {
+            HueStrategy::Neighbour { size, n, dist } => {
+                hues = [hues, generate_hue_neighbourhood(seed_hue, *size, *n, dist)].concat()
+            }
+            HueStrategy::Contrast { size, n, dist } => {
+                hues = [
+                    hues,
+                    generate_hue_neighbourhood(seed_hue + 180.0, *size, *n, dist),
+                ]
+                .concat()
+            }
+            HueStrategy::Penpal {
+                size,
+                n,
+                dist,
+                distance,
+            } => {
+                hues = [
+                    hues,
+                    generate_hue_neighbourhood(seed_hue + distance, *size, *n, dist),
+                ]
+                .concat()
+            }
+            HueStrategy::Cycle { n } => {
+                for i in 1..=*n {
+                    hues.push(seed_hue + i as f64 * (360.0 / (*n as f64 + 1.0)));
+                }
+            }
+        }
+    }
+
+    // lum strategy application
+    hues.into_iter().for_each(|hue| {
+        let hue = hue as f32;
+
+        match &lum_strategy {
+            LumStrategy::Exact(lums) => {
+                for mut l in lums.iter() {
+                    if flag_single_lum {
+                        l = lums.choose(rng).unwrap()
+                    };
+                    palette.push(Lch::new(*l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum {
+                        break;
+                    };
+                }
+            }
+            LumStrategy::Random { unified: _ } => {
+                for _ in 0..lum_amnt {
+                    palette.push(Lch::new(
+                        rng.gen_range(0.0..100.0),
+                        rng.gen_range(0.0..128.0),
+                        hue,
+                    ));
+                    if flag_single_lum {
+                        break;
+                    };
+                }
+            }
+            LumStrategy::Distributed => {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum {
+                        i = rng.gen_range(0..lum_amnt)
+                    };
+                    let span_size = max_lum - min_lum;
+                    let l = min_lum + (i as f64 / (lum_amnt as f64 - 1.0)) * span_size;
+                    palette.push(Lch::new(l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum {
+                        break;
+                    };
+                }
+            }
+            LumStrategy::DistributedArea { overlap } => {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum {
+                        i = rng.gen_range(0..lum_amnt)
+                    };
+                    let span_size = max_lum - min_lum;
+                    let step_size = span_size / lum_amnt as f64;
+
+                    let mut area_start = min_lum + (i as f64 * step_size);
+                    let mut area_end = area_start + step_size;
+
+                    if let Some(overlap) = overlap {
+                        area_start = (area_start - overlap).max(min_lum);
+                        area_end = (area_end + overlap).min(max_lum);
+                    }
+
+                    let l = rng.gen_range(area_start..area_end) as f32;
+                    palette.push(Lch::new(l, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum {
+                        break;
+                    };
+                }
+            }
+            LumStrategy::DistributedNudge { nudge_size } => {
+                for mut i in 0..lum_amnt {
+                    if flag_single_lum {
+                        i = rng.gen_range(0..lum_amnt)
+                    };
+                    let span_size = max_lum - min_lum;
+                    let mut l = min_lum + (i as f64 / (lum_amnt as f64 - 1.0)) * span_size;
+
+                    l = (l + rng.gen_range((-nudge_size)..*nudge_size)).clamp(0.0, 100.0);
+
+                    palette.push(Lch::new(l as f32, rng.gen_range(0.0..128.0), hue));
+                    if flag_single_lum {
+                        break;
+                    };
+                }
+            }
+        }
+    });
+
+    match chroma_strategy {
+        ChromaStrategy::Random(range) => {
+            palette
+                .iter_mut()
+                .for_each(|col| col.chroma = rng.gen_range(range.clone()) as f32);
+        }
+    }
+
+    // injection
+    if flag_lum_safeguard {
+        palette.push(gen_with_random_lightness(rng, 80.0, 100.0));
+        palette.push(gen_with_random_lightness(rng, 20.0, 80.0));
+        palette.push(gen_with_random_lightness(rng, 0.0, 20.0));
+    }
+
+    if flag_extremes {
+        palette.push(Lch::new(0.0, 0.0, 0.0));
+        palette.push(Lch::new(100.0, 128.0, 0.0));
+    }
+
+    if let Some(colours) = inject {
+        let lch_colours: Vec<Lch> = colours
+            .into_iter()
+            .map(|colour| colour.into_color())
+            .collect();
+        palette = [palette, lch_colours].concat();
+    }
+
+    Ok(palette
+        .into_iter()
+        .map(|color| color.into_color())
+        .collect())
+}
 
 #[allow(dead_code)]
 pub enum LumStrategy {
@@ -427,4 +704,52 @@ pub fn parse_rgb(value: &serde_yaml::Value) -> Srgb {
     } else {
         panic!("uh oh rgb is bad");
     }
+}
+
+pub fn gen_with_random_lightness(rng: &mut impl Rng, min: f32, max: f32) -> Lch {
+    Lch::new(
+        rng.gen_range(min..=max),
+        rng.gen_range(0.0..128.0),
+        rng.gen_range(0.0..360.0),
+    )
+}
+
+pub fn gen_with_lightness(rng: &mut impl Rng, lum: f32) -> Lch {
+    Lch::new(lum, rng.gen_range(0.0..128.0), rng.gen_range(0.0..360.0))
+}
+
+pub fn generate_random_palette(mut rng: &mut impl Rng) -> Vec<Srgb> {
+    let mut palette = vec![
+        gen_with_random_lightness(rng, 80.0, 100.0),
+        gen_with_random_lightness(rng, 20.0, 80.0),
+        gen_with_random_lightness(rng, 0.0, 20.0),
+    ];
+
+    for _ in 0..rng.gen_range(0..10) {
+        palette.push(gen_with_random_lightness(&mut rng, 0.0, 100.0));
+    }
+
+    let mut palette = palette
+        .into_iter()
+        .map(|col| {
+            let col: Srgb = col.into_color();
+            col
+        })
+        .map(|col| {
+            if rng.gen_bool(0.10) {
+                let amnt = rng.gen_range(2..=10);
+                col.build_gradient_lch(amnt)
+            } else {
+                vec![col]
+            }
+        })
+        .collect::<Vec<_>>()
+        .concat();
+
+    if rng.gen_bool(0.75) {
+        palette.push(named::BLACK.into_format());
+        palette.push(named::WHITE.into_format());
+    }
+
+    palette
 }
