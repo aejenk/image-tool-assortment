@@ -7,7 +7,7 @@ use source::{MediaType, Source, SourceKind};
 
 use crate::{
     logging::{alt::SystemLog, AppLog, RunLog},
-    parsers::system::tools::property::Property,
+    parsers::{effects::parse_effects, system::tools::property::Property},
 };
 
 mod effects;
