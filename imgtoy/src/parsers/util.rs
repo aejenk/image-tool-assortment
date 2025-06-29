@@ -1,5 +1,5 @@
-use rand::{seq::SliceRandom, Rng};
-use serde_yaml::{Mapping, Value};
+use rand::Rng;
+use serde_yaml::Value;
 
 use crate::{
     effects::{BaseResult, Log},

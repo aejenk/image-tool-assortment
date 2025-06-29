@@ -1,14 +1,14 @@
-use image_effects::dither::ordered::tools::properties::{CheckerType, Factor, Rotation, Source};
+use image_effects::dither::ordered::tools::properties::{CheckerType, Factor, Source};
 use rand::Rng;
 use serde_yaml::Value;
 
 use crate::{
     effects::{BaseResult, Log},
     parsers::{
-        modifiers::simple::{parse_f64_factor, parse_u64_factor},
+        modifiers::simple::parse_u64_factor,
         properties::process_chance,
         util::{
-            parse_property_as_f64, parse_property_as_f64_tuple_param, parse_property_as_str,
+            parse_property_as_f64, parse_property_as_str,
             parse_property_as_u64_complex, parse_property_as_u64_tuple_param,
         },
     },

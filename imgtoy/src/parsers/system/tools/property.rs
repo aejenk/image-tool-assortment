@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 
 use serde_yaml::Value;
 
@@ -27,10 +26,10 @@ impl<'a> Property<'a> {
     }
 
     pub fn get_prop(&self, log: Log) -> &Value {
-        &self
+        self
             .value
             .get(self.get_name())
-            .expect(format!("expected property [{}]", self.get_name()).as_str())
+            .unwrap_or_else(|| panic!("expected property [{}]", self.get_name()))
     }
 
     pub fn get_prop_as_u64(&self, log: Log) -> Primitive<u64> {

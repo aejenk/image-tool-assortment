@@ -74,7 +74,7 @@ impl<T: Clone + PartialOrd> From<Vec<T>> for ParameterList<T> {
     }
 }
 
-impl<'a> ParameterList<&'a Vec<Value>> {
+impl ParameterList<&Vec<Value>> {
     pub fn of_u64(self, log: Log) -> ParameterList<ParameterList<u64>> {
         let mut fulllist = vec![];
         for list in self.items {

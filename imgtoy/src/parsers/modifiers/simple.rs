@@ -4,7 +4,7 @@ use serde_yaml::Value;
 use crate::{
     effects::{BaseResult, Log},
     parsers::{
-        properties::{parse_chance, process_chance},
+        properties::process_chance,
         util::{parse_property_as_f64_complex, parse_property_as_u64_complex},
     },
 };

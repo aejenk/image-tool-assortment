@@ -18,10 +18,10 @@ pub struct ParameterRange<T: Clone + SampleUniform + PartialOrd> {
 
 impl<T: Clone + SampleUniform + PartialOrd> ParameterRange<T> {
     pub fn parse_as_u64(log: Log, value: &Value) -> ParameterRange<u64> {
-        let min = parse_property_as_u64(log, &value, "min", None)
+        let min = parse_property_as_u64(log, value, "min", None)
             .unwrap()
             .expect("[.min] expected as u64");
-        let max = parse_property_as_u64(log, &value, "max", None)
+        let max = parse_property_as_u64(log, value, "max", None)
             .unwrap()
             .expect("[.max] expected as u64");
 
@@ -29,10 +29,10 @@ impl<T: Clone + SampleUniform + PartialOrd> ParameterRange<T> {
     }
 
     pub fn parse_as_i64(log: Log, value: &Value) -> ParameterRange<i64> {
-        let min = parse_property_as_i64(log, &value, "min", None)
+        let min = parse_property_as_i64(log, value, "min", None)
             .unwrap()
             .expect("[.min] expected as i64");
-        let max = parse_property_as_i64(log, &value, "max", None)
+        let max = parse_property_as_i64(log, value, "max", None)
             .unwrap()
             .expect("[.max] expected as i64");
 
@@ -40,10 +40,10 @@ impl<T: Clone + SampleUniform + PartialOrd> ParameterRange<T> {
     }
 
     pub fn parse_as_f64(log: Log, value: &Value) -> ParameterRange<f64> {
-        let min = parse_property_as_f64(log, &value, "min", None)
+        let min = parse_property_as_f64(log, value, "min", None)
             .unwrap()
             .expect("[.min] expected as u64");
-        let max = parse_property_as_f64(log, &value, "max", None)
+        let max = parse_property_as_f64(log, value, "max", None)
             .unwrap()
             .expect("[.max] expected as u64");
 

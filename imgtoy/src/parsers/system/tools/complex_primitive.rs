@@ -24,7 +24,7 @@ impl<T: Clone + SampleUniform + PartialOrd> ComplexPrimitive<T> {
 
             ComplexPrimitive::Choice(options)
         } else if value.is_mapping() {
-            ComplexPrimitive::Range(ParameterRange::<u64>::parse_as_u64(log, &value))
+            ComplexPrimitive::Range(ParameterRange::<u64>::parse_as_u64(log, value))
         } else {
             panic!("expected COMPLEX PRIMITIVE - found unexpected type.");
         }
@@ -41,7 +41,7 @@ impl<T: Clone + SampleUniform + PartialOrd> ComplexPrimitive<T> {
 
             ComplexPrimitive::Choice(options)
         } else if value.is_mapping() {
-            ComplexPrimitive::Range(ParameterRange::<u64>::parse_as_i64(log, &value))
+            ComplexPrimitive::Range(ParameterRange::<u64>::parse_as_i64(log, value))
         } else {
             panic!("expected COMPLEX PRIMITIVE - found unexpected type.");
         }
@@ -58,7 +58,7 @@ impl<T: Clone + SampleUniform + PartialOrd> ComplexPrimitive<T> {
 
             ComplexPrimitive::Choice(options)
         } else if value.is_mapping() {
-            ComplexPrimitive::Range(ParameterRange::<f64>::parse_as_f64(log, &value))
+            ComplexPrimitive::Range(ParameterRange::<f64>::parse_as_f64(log, value))
         } else {
             panic!("expected COMPLEX PRIMITIVE - found unexpected type.");
         }

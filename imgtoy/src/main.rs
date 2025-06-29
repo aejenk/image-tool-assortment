@@ -1,14 +1,11 @@
-use std::{error::Error, fs::File, io::Write, path::Path};
+use std::{error::Error, fs::File, path::Path};
 
 use image::{codecs::gif::GifEncoder, DynamicImage, Frame};
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::{rngs::StdRng, SeedableRng};
 use source::{MediaType, Source, SourceKind};
 
-use crate::{
-    logging::{alt::SystemLog, AppLog, RunLog},
-    parsers::{effects::parse_effects, system::tools::property::Property},
-};
+use crate::{logging::alt::SystemLog, parsers::effects::parse_effects};
 
 mod effects;
 mod logging;
@@ -90,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .as_u64()
         .expect("[output.n] must be a positive integer.");
 
-    log.state_property("n", &iterations.to_string())?;
+    log.state_property("n", iterations.to_string())?;
     log.end_category(); // output
 
     println!("[ ! ] - Running {iterations} iterations...");

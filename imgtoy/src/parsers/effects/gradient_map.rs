@@ -1,5 +1,5 @@
 use image_effects::filter::filters::GradientMap;
-use palette::{IntoColor, Lch, Srgb};
+use palette::{IntoColor, Srgb};
 use rand::Rng;
 use serde_yaml::Value;
 

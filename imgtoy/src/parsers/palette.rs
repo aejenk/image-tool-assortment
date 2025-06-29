@@ -3,7 +3,7 @@ use std::ops::Range;
 use image_effects::prelude::IntoGradientLch;
 use palette::{named, rgb::Rgb, IntoColor, Lch, Srgb};
 use rand::{seq::SliceRandom, Rng};
-use serde_yaml::{Mapping, Value};
+use serde_yaml::Value;
 
 use crate::{
     effects::{BaseResult, Log},
