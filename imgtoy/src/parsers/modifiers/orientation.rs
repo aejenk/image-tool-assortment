@@ -4,15 +4,10 @@ use serde_yaml::Value;
 
 use crate::effects::{BaseResult, Log};
 
-pub fn parse_orientation(
-    log: Log,
-    rng: &mut impl Rng,
-    value: &Value,
-    strategy: &str,
-) -> BaseResult<Orientation> {
-    let orientation = value.get("orientation").unwrap_or_else(|| {
-        panic!("[ordered.strategy ({strategy})] requires [ordered.orientation]")
-    });
+pub fn parse_orientation(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<Orientation> {
+    let orientation = value
+        .get("orientation")
+        .unwrap_or_else(|| panic!("[ordered.strategy] requires [ordered.orientation]"));
 
     let orientation = match orientation {
         Value::Mapping(mapping) => {

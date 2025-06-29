@@ -24,6 +24,104 @@ use crate::{
     },
 };
 
+pub enum OrderedKind {
+    Bayer,
+    Diamonds,
+    CheckeredDiamonds,
+    Stars,
+    NewStars,
+    Grid,
+    Trail,
+    CrissCross,
+    Static,
+    Wavy,
+    BootlegBayer,
+    Diagonals,
+    DiagonalsBig,
+    DiamondGrid,
+    SpeckleSquares,
+    Scales,
+    TrailScales,
+    DiagonalsN,
+    DiagonalTiles,
+    BouncingBowtie,
+    Scanline,
+    Starburst,
+    ShinyBowtie,
+    MarbleTile,
+    CurvePath,
+    Zigzag,
+    BrokenSpiral,
+    ModuloSnake,
+}
+
+impl From<&str> for OrderedKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "bayer" => Self::Bayer,
+            "diamonds" => Self::Diamonds,
+            "checkered-diamonds" => Self::CheckeredDiamonds,
+            "stars" => Self::Stars,
+            "new-stars" => Self::NewStars,
+            "grid" => Self::Grid,
+            "trail" => Self::Trail,
+            "criss-cross" => Self::CrissCross,
+            "static" => Self::Static,
+            "wavy" => Self::Wavy,
+            "bootleg-bayer" => Self::BootlegBayer,
+            "diagonals" => Self::Diagonals,
+            "diagonals-big" => Self::DiagonalsBig,
+            "diamond-grid" => Self::DiamondGrid,
+            "speckle-squares" => Self::SpeckleSquares,
+            "scales" => Self::Scales,
+            "trail-scales" => Self::TrailScales,
+            "diagonals-n" => Self::DiagonalsN,
+            "diagonal-tiles" => Self::DiagonalTiles,
+            "bouncing-bowtie" => Self::BouncingBowtie,
+            "scanline" => Self::Scanline,
+            "starburst" => Self::Starburst,
+            "shiny-bowtie" => Self::ShinyBowtie,
+            "marble-tile" => Self::MarbleTile,
+            "curve-path" => Self::CurvePath,
+            "zigzag" => Self::Zigzag,
+            "broken-spiral" => Self::BrokenSpiral,
+            "modulo-snake" => Self::ModuloSnake,
+            _ => {
+                let strategies = vec![
+                    "bayer",
+                    "diamonds",
+                    "checkered-diamonds",
+                    "stars",
+                    "new-stars",
+                    "grid",
+                    "trail",
+                    "criss-cross",
+                    "static",
+                    "wavy",
+                    "bootleg-bayer",
+                    "diagonals",
+                    "diagonals-big",
+                    "diamond-grid",
+                    "speckle-squares",
+                    "scales",
+                    "trail-scales",
+                    "diagonals-n",
+                    "diagonal-tiles",
+                    "bouncing-bowtie",
+                    "scanline",
+                    "starburst",
+                    "shiny-bowtie",
+                    "marble-tile",
+                    "curve-path",
+                    "broken-spiral",
+                    "modulo-snake",
+                ];
+                panic!("{value} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
+            }
+        }
+    }
+}
+
 pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult<Ordered> {
     let config = effect.get("ordered").unwrap();
 
@@ -59,41 +157,44 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
     let checker = parse_checker(log, rng, config)?;
 
     log.begin_category(strategy)?;
-    let mut strategy = match strategy.as_str() {
-        "bayer" => {
-            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
+
+    let strategy = OrderedKind::from(strategy.as_str());
+
+    let mut strategy = match strategy {
+        OrderedKind::Bayer => {
+            let size = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::Bayer(size)
         }
-        "diamonds" => {
-            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::Diamonds => {
+            let size = parse_matrix_size(log, rng, config)? as usize;
             OrderedStrategy::Diamonds(size)
         }
-        "checkered-diamonds" => {
-            let size = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::CheckeredDiamonds => {
+            let size = parse_matrix_size(log, rng, config)? as usize;
             OrderedStrategy::CheckeredDiamonds(size)
         }
-        "stars" => OrderedStrategy::Stars,
-        "new-stars" => OrderedStrategy::NewStars,
-        "grid" => OrderedStrategy::Grid,
-        "trail" => OrderedStrategy::Trail,
-        "criss-cross" => OrderedStrategy::Crisscross,
-        "static" => OrderedStrategy::Static,
-        "wavy" => {
-            let orientation = parse_orientation(log, rng, config, strategy)?;
+        OrderedKind::Stars => OrderedStrategy::Stars,
+        OrderedKind::NewStars => OrderedStrategy::NewStars,
+        OrderedKind::Grid => OrderedStrategy::Grid,
+        OrderedKind::Trail => OrderedStrategy::Trail,
+        OrderedKind::CrissCross => OrderedStrategy::Crisscross,
+        OrderedKind::Static => OrderedStrategy::Static,
+        OrderedKind::Wavy => {
+            let orientation = parse_orientation(log, rng, config)?;
             OrderedStrategy::Wavy(orientation)
         }
-        "bootleg-bayer" => OrderedStrategy::BootlegBayer,
-        "diagonals" => OrderedStrategy::Diagonals,
-        "diagonals-big" => OrderedStrategy::DiagonalsBig,
-        "diamond-grid" => OrderedStrategy::DiamondGrid,
-        "speckle-squares" => OrderedStrategy::SpeckleSquares,
-        "scales" => OrderedStrategy::Scales,
-        "trail-scales" => OrderedStrategy::TrailScales,
-        "diagonals-n" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
-            let direction = parse_diagonaldirection(log, rng, config, strategy)?;
-            let increase = parse_increase_strategy(log, rng, config, strategy)?;
+        OrderedKind::BootlegBayer => OrderedStrategy::BootlegBayer,
+        OrderedKind::Diagonals => OrderedStrategy::Diagonals,
+        OrderedKind::DiagonalsBig => OrderedStrategy::DiagonalsBig,
+        OrderedKind::DiamondGrid => OrderedStrategy::DiamondGrid,
+        OrderedKind::SpeckleSquares => OrderedStrategy::SpeckleSquares,
+        OrderedKind::Scales => OrderedStrategy::Scales,
+        OrderedKind::TrailScales => OrderedStrategy::TrailScales,
+        OrderedKind::DiagonalsN => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
+            let direction = parse_diagonaldirection(log, rng, config)?;
+            let increase = parse_increase_strategy(log, rng, config)?;
 
             OrderedStrategy::DiagonalsN {
                 n,
@@ -101,39 +202,39 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
                 increase: increase.clone(),
             }
         }
-        "diagonal-tiles" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::DiagonalTiles => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::DiagonalTiles(n)
         }
-        "bouncing-bowtie" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::BouncingBowtie => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::BouncingBowtie(n)
         }
-        "scanline" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
-            let orientation = parse_orientation(log, rng, config, strategy);
+        OrderedKind::Scanline => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
+            let orientation = parse_orientation(log, rng, config);
 
             OrderedStrategy::ScanLine(n, orientation?.clone())
         }
-        "starburst" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::Starburst => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::Starburst(n)
         }
-        "shiny-bowtie" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::ShinyBowtie => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::ShinyBowtie(n)
         }
-        "marble-tile" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::MarbleTile => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::MarbleTile(n)
         }
-        "curve-path" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::CurvePath => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
             let amplitude =
                 parse_property_as_f64_complex(log, rng, config, "amplitude")?.unwrap_or(1.0);
             let promotion =
@@ -148,8 +249,8 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
                 halt_threshold,
             }
         }
-        "zigzag" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::Zigzag => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
             let halt_threshold = parse_property_as_u64_complex(log, rng, config, "halt-threshold")?
                 .unwrap_or(100) as usize;
             let wrapping = parse_wrapping_set(log, rng, config)?
@@ -173,8 +274,8 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
                 promotion,
             }
         }
-        "broken-spiral" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::BrokenSpiral => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             let base_step =
                 parse_property_as_f64_tuple_param(log, rng, config, "base-step", ("y", "x"))?;
@@ -188,7 +289,7 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
             let increment_in = parse_property_as_u64_complex(log, rng, config, "increment-in")?
                 .unwrap_or(1) as usize;
 
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+            let n = parse_matrix_size(log, rng, config)? as usize;
 
             OrderedStrategy::BrokenSpiral {
                 n,
@@ -198,8 +299,8 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
                 increment_in,
             }
         }
-        "modulo-snake" => {
-            let n = parse_matrix_size(log, rng, config, strategy)? as usize;
+        OrderedKind::ModuloSnake => {
+            let n = parse_matrix_size(log, rng, config)? as usize;
             let increment_by =
                 parse_property_as_f64_complex(log, rng, config, "increment-by")?.unwrap_or(1.0);
             let modulo =
@@ -213,38 +314,6 @@ pub fn parse_ordered(log: Log, rng: &mut impl Rng, effect: &Value) -> BaseResult
                 modulo,
                 iterations,
             }
-        }
-        _ => {
-            let strategies = vec![
-                "bayer",
-                "diamonds",
-                "checkered-diamonds",
-                "stars",
-                "new-stars",
-                "grid",
-                "trail",
-                "criss-cross",
-                "static",
-                "wavy",
-                "bootleg-bayer",
-                "diagonals",
-                "diagonals-big",
-                "diamond-grid",
-                "speckle-squares",
-                "scales",
-                "trail-scales",
-                "diagonals-n",
-                "diagonal-tiles",
-                "bouncing-bowtie",
-                "scanline",
-                "starburst",
-                "shiny-bowtie",
-                "marble-tile",
-                "curve-path",
-                "broken-spiral",
-                "modulo-snake",
-            ];
-            panic!("{strategy} is an invalid [ordered.strategy]. Allowed strategies are: {strategies:?}");
         }
     };
     log.end_category()?;

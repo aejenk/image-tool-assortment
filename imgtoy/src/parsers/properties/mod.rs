@@ -4,8 +4,8 @@ use serde_yaml::Value;
 use crate::{
     effects::{BaseResult, Log},
     parsers::util::{
-        logless::{self}, parse_property_as_f64_complex,
-        parse_property_as_u64_complex,
+        logless::{self},
+        parse_property_as_f64_complex, parse_property_as_u64_complex,
     },
 };
 
@@ -19,15 +19,10 @@ pub fn process_chance(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult
     Ok(rng.gen_range(0.0..1.0) < chance)
 }
 
-pub fn parse_matrix_size(
-    log: Log,
-    rng: &mut impl Rng,
-    value: &Value,
-    strategy: &str,
-) -> BaseResult<u64> {
+pub fn parse_matrix_size(log: Log, rng: &mut impl Rng, value: &Value) -> BaseResult<u64> {
     Ok(
         parse_property_as_u64_complex(log, rng, value, "matrix-size")?
-            .unwrap_or_else(|| panic!("[ordered.{strategy}] must have a u64 param")),
+            .unwrap_or_else(|| panic!("[ordered] must have a u64 param")),
     )
 }
 

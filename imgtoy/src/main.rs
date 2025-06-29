@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("[output.n] must be a positive integer.");
 
     log.state_property("n", iterations.to_string())?;
-    log.end_category(); // output
+    log.end_category()?; // output
 
     println!("[ ! ] - Running {iterations} iterations...");
 

@@ -11,11 +11,10 @@ pub fn parse_increase_strategy(
     log: Log,
     rng: &mut impl Rng,
     value: &Value,
-    strategy: &str,
 ) -> BaseResult<Increase> {
-    let increase_strategy = value.get("increase-strategy").unwrap_or_else(|| {
-        panic!("[ordered.strategy ({strategy})] requires [ordered.increase-strategy]")
-    });
+    let increase_strategy = value
+        .get("increase-strategy")
+        .unwrap_or_else(|| panic!("[ordered.strategy] requires [ordered.increase-strategy]"));
 
     let strategy_type = increase_strategy
         .get("type")

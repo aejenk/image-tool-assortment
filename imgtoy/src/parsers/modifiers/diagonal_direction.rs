@@ -8,11 +8,10 @@ pub fn parse_diagonaldirection(
     log: Log,
     rng: &mut impl Rng,
     value: &Value,
-    strategy: &str,
 ) -> BaseResult<DiagonalDirection> {
-    let diagonaldirection = value.get("diagonal-direction").unwrap_or_else(|| {
-        panic!("[ordered.strategy ({strategy})] requires [ordered.diagonal-direction]")
-    });
+    let diagonaldirection = value
+        .get("diagonal-direction")
+        .unwrap_or_else(|| panic!("[ordered.strategy] requires [ordered.diagonal-direction]"));
 
     let diagonal_direction = match diagonaldirection {
         Value::Mapping(mapping) => {
